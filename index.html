@@ -1,0 +1,3254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1.0">
+
+<meta name="theme-color" content="#f6a6c1">
+
+<meta
+  name="apple-mobile-web-app-capable"
+  content="yes">
+
+<meta
+  name="apple-mobile-web-app-title"
+  content="YApp">
+
+<title>YApp 🌸</title>
+
+<style>
+
+*{
+  box-sizing:border-box;
+}
+
+body{
+  margin:0;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+
+  color:#4d2638;
+
+  min-height:100vh;
+
+  background:
+    radial-gradient(
+      circle at 10% 10%,
+      #ffdbe8 0 2px,
+      transparent 3px
+    ),
+    radial-gradient(
+      circle at 80% 20%,
+      #ffdbe8 0 2px,
+      transparent 3px
+    ),
+    linear-gradient(
+      145deg,
+      #fff5f8,
+      #ffe8f0 50%,
+      #fff8fa
+    );
+}
+
+button,
+input,
+textarea{
+  font:inherit;
+}
+
+button{
+  cursor:pointer;
+}
+
+.hidden{
+  display:none !important;
+}
+
+.app{
+  width:100%;
+  max-width:500px;
+  margin:auto;
+  min-height:100vh;
+  padding:20px 16px 80px;
+}
+
+.logo{
+  color:#c94f80;
+  font-size:30px;
+  font-weight:800;
+}
+
+.sub{
+  color:#987082;
+  font-size:13px;
+}
+
+.card{
+  background:rgba(255,255,255,.94);
+  border-radius:24px;
+  padding:20px;
+  margin-bottom:15px;
+  box-shadow:0 10px 30px #b94c7620;
+}
+
+h1{
+  margin:5px 0;
+  font-size:28px;
+}
+
+h2{
+  margin:0 0 15px;
+  font-size:19px;
+}
+
+input,
+textarea{
+  width:100%;
+  border:1px solid #edc9d7;
+  background:#fff;
+  color:#4d2638;
+  border-radius:15px;
+  padding:14px;
+  margin:6px 0;
+  outline:none;
+}
+
+textarea{
+  min-height:100px;
+  resize:none;
+}
+
+input:focus,
+textarea:focus{
+  border-color:#d86691;
+  box-shadow:0 0 0 3px #d8669120;
+}
+
+.btn{
+  width:100%;
+  border:0;
+  padding:15px;
+  margin-top:8px;
+  border-radius:17px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #e979a5,
+      #c84f7d
+    );
+
+  color:white;
+  font-weight:750;
+}
+
+.btn:disabled{
+  opacity:.6;
+  cursor:wait;
+}
+
+.btn.secondary{
+  background:white;
+  color:#bd4775;
+  border:1px solid #efcad8;
+}
+
+.top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:18px;
+}
+
+.logout{
+  border:0;
+  background:#ffe5ef;
+  color:#bd4775;
+  padding:9px 13px;
+  border-radius:12px;
+}
+
+.stats{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.stat{
+  background:#fff1f5;
+  padding:15px;
+  border-radius:20px;
+}
+
+.label{
+  color:#916679;
+  font-size:12px;
+}
+
+.number{
+  color:#bd4775;
+  font-size:25px;
+  font-weight:800;
+  margin-top:5px;
+}
+
+.progress{
+  height:8px;
+  background:#f4dce5;
+  border-radius:20px;
+  overflow:hidden;
+  margin-top:10px;
+}
+
+.progress div{
+  height:100%;
+  width:0%;
+  background:
+    linear-gradient(
+      90deg,
+      #e778a3,
+      #c84f80
+    );
+  transition:.4s;
+}
+
+.ai{
+  background:
+    linear-gradient(
+      135deg,
+      #fff1f6,
+      #ffe5ef
+    );
+}
+
+.ai-result{
+  background:white;
+  border-radius:16px;
+  padding:14px;
+  margin-top:12px;
+  font-size:13px;
+}
+
+.food-item{
+  padding:10px 0;
+  border-bottom:1px solid #f5dfe7;
+}
+
+.food-item:last-child{
+  border-bottom:0;
+}
+
+.meal{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  padding:13px 0;
+  border-bottom:1px solid #f5dfe7;
+}
+
+.meal:last-child{
+  border-bottom:0;
+}
+
+.meal-name{
+  font-weight:650;
+}
+
+.meal-meta{
+  color:#997183;
+  font-size:12px;
+  margin-top:3px;
+}
+
+.meal-cal{
+  color:#c24e7b;
+  font-weight:750;
+  white-space:nowrap;
+}
+
+.nutrient-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+}
+
+.nutrient{
+  background:#fff5f8;
+  padding:12px;
+  border-radius:16px;
+}
+
+.nutrient-name{
+  color:#916679;
+  font-size:12px;
+}
+
+.nutrient-value{
+  color:#bd4775;
+  font-size:18px;
+  font-weight:750;
+  margin-top:3px;
+}
+
+.nutrient-goal{
+  color:#a27a8c;
+  font-size:10px;
+}
+
+.code{
+  background:#fff1f6;
+  border:1px dashed #d86691;
+  border-radius:17px;
+  padding:15px;
+  text-align:center;
+  font-size:25px;
+  font-weight:800;
+  letter-spacing:4px;
+  color:#bd4775;
+  margin:12px 0;
+}
+
+.reminder{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding:12px 0;
+  border-bottom:1px solid #f5dfe7;
+}
+
+.reminder:last-child{
+  border-bottom:0;
+}
+
+.toggle{
+  position:relative;
+  width:50px;
+  height:28px;
+  flex:none;
+}
+
+.toggle input{
+  opacity:0;
+  width:0;
+  height:0;
+}
+
+.slider{
+  position:absolute;
+  inset:0;
+  background:#dfcbd3;
+  border-radius:30px;
+  transition:.2s;
+}
+
+.slider:before{
+  content:"";
+  position:absolute;
+  width:22px;
+  height:22px;
+  left:3px;
+  top:3px;
+  background:white;
+  border-radius:50%;
+  transition:.2s;
+  box-shadow:0 2px 5px #0002;
+}
+
+.toggle input:checked + .slider{
+  background:#d45d8b;
+}
+
+.toggle input:checked + .slider:before{
+  transform:translateX(22px);
+}
+
+.empty{
+  text-align:center;
+  color:#a27a8c;
+  padding:15px;
+}
+
+.note{
+  color:#a27a8c;
+  font-size:11px;
+  line-height:1.5;
+}
+
+.petals{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  overflow:hidden;
+  z-index:-1;
+}
+
+.petal{
+  position:absolute;
+  top:-30px;
+  font-size:18px;
+  opacity:.55;
+  animation:fall linear infinite;
+}
+
+@keyframes fall{
+  to{
+    transform:
+      translateY(110vh)
+      rotate(360deg);
+  }
+}
+
+.toast{
+  position:fixed;
+  top:18px;
+  left:50%;
+
+  transform:
+    translateX(-50%)
+    translateY(-100px);
+
+  background:#522c3d;
+  color:white;
+  padding:12px 17px;
+  border-radius:14px;
+
+  transition:.3s;
+
+  z-index:100;
+
+  max-width:90%;
+  text-align:center;
+}
+
+.toast.show{
+  transform:
+    translateX(-50%)
+    translateY(0);
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="petals">
+
+<span
+  class="petal"
+  style="left:8%;animation-duration:9s">
+  🌸
+</span>
+
+<span
+  class="petal"
+  style="left:25%;animation-duration:12s;animation-delay:2s">
+  🌸
+</span>
+
+<span
+  class="petal"
+  style="left:52%;animation-duration:10s;animation-delay:4s">
+  🌸
+</span>
+
+<span
+  class="petal"
+  style="left:76%;animation-duration:13s;animation-delay:1s">
+  🌸
+</span>
+
+<span
+  class="petal"
+  style="left:91%;animation-duration:11s;animation-delay:5s">
+  🌸
+</span>
+
+</div>
+
+
+<div class="app">
+
+
+<!-- =========================
+LOGIN
+========================= -->
+
+<section id="authPage">
+
+<div
+  class="card"
+  style="margin-top:50px">
+
+<div class="logo">
+🌸 YApp
+</div>
+
+<p class="sub">
+Eat better, together.
+</p>
+
+<h2>
+Welcome
+</h2>
+
+<input
+  id="email"
+  type="email"
+  placeholder="Email">
+
+<input
+  id="password"
+  type="password"
+  placeholder="Password">
+
+<button
+  class="btn"
+  onclick="login()">
+LOG IN
+</button>
+
+<button
+  class="btn secondary"
+  onclick="signup()">
+CREATE ACCOUNT
+</button>
+
+<p class="note">
+Your account is stored using Firebase Authentication.
+</p>
+
+</div>
+
+</section>
+
+
+<!-- =========================
+PROFILE
+========================= -->
+
+<section
+  id="profilePage"
+  class="hidden">
+
+<div
+  class="card"
+  style="margin-top:50px">
+
+<div class="logo">
+🌸 YApp
+</div>
+
+<h1>
+Let's set you up
+</h1>
+
+<p class="sub">
+Tell YApp a little about yourself.
+</p>
+
+<input
+  id="profileName"
+  placeholder="Your name">
+
+<input
+  id="profileGoal"
+  type="number"
+  placeholder="Daily calorie goal">
+
+<button
+  class="btn"
+  onclick="saveProfile()">
+CONTINUE
+</button>
+
+</div>
+
+</section>
+
+
+<!-- =========================
+MAIN
+========================= -->
+
+<section
+  id="mainPage"
+  class="hidden">
+
+
+<div class="top">
+
+<div>
+
+<div class="logo">
+🌸 YApp
+</div>
+
+<div class="sub">
+Eat better, together.
+</div>
+
+</div>
+
+<button
+  class="logout"
+  onclick="logout()">
+Log out
+</button>
+
+</div>
+
+
+<div class="card">
+
+<div class="sub">
+Good evening,
+</div>
+
+<h1 id="welcome">
+You ❤️
+</h1>
+
+<div
+  id="date"
+  class="sub">
+</div>
+
+</div>
+
+
+<!-- =========================
+CALORIES
+========================= -->
+
+<div class="card">
+
+<h2>
+Today's calories
+</h2>
+
+<div class="stats">
+
+
+<div class="stat">
+
+<div class="label">
+YOU
+</div>
+
+<div
+  id="myCalories"
+  class="number">
+0
+</div>
+
+<div
+  id="myGoal"
+  class="label">
+/ 2300 kcal
+</div>
+
+<div class="progress">
+<div id="myProgress"></div>
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="label">
+GIRLFRIEND
+</div>
+
+<div
+  id="partnerCalories"
+  class="number">
+0
+</div>
+
+<div
+  id="partnerGoal"
+  class="label">
+Not connected
+</div>
+
+<div class="progress">
+<div id="partnerProgress"></div>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<!-- =========================
+NUTRIENTS
+========================= -->
+
+<div class="card">
+
+<h2>
+🥗 Important nutrients
+</h2>
+
+<div class="nutrient-grid">
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Protein
+</div>
+<div
+  id="nProtein"
+  class="nutrient-value">
+0 g
+</div>
+<div class="nutrient-goal">
+Track daily intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Carbohydrates
+</div>
+<div
+  id="nCarbs"
+  class="nutrient-value">
+0 g
+</div>
+<div class="nutrient-goal">
+Track daily intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Fat
+</div>
+<div
+  id="nFat"
+  class="nutrient-value">
+0 g
+</div>
+<div class="nutrient-goal">
+Track daily intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Fiber
+</div>
+<div
+  id="nFiber"
+  class="nutrient-value">
+0 g
+</div>
+<div class="nutrient-goal">
+~25–30 g
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Sugar
+</div>
+<div
+  id="nSugar"
+  class="nutrient-value">
+0 g
+</div>
+<div class="nutrient-goal">
+Track intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Sodium
+</div>
+<div
+  id="nSodium"
+  class="nutrient-value">
+0 mg
+</div>
+<div class="nutrient-goal">
+Prefer ≤2300 mg
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Calcium
+</div>
+<div
+  id="nCalcium"
+  class="nutrient-value">
+0 mg
+</div>
+<div class="nutrient-goal">
+Track intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Iron
+</div>
+<div
+  id="nIron"
+  class="nutrient-value">
+0 mg
+</div>
+<div class="nutrient-goal">
+Track intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Potassium
+</div>
+<div
+  id="nPotassium"
+  class="nutrient-value">
+0 mg
+</div>
+<div class="nutrient-goal">
+Track intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Vitamin C
+</div>
+<div
+  id="nVitaminC"
+  class="nutrient-value">
+0 mg
+</div>
+<div class="nutrient-goal">
+Track intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Vitamin A
+</div>
+<div
+  id="nVitaminA"
+  class="nutrient-value">
+0 µg
+</div>
+<div class="nutrient-goal">
+Track intake
+</div>
+</div>
+
+
+<div class="nutrient">
+<div class="nutrient-name">
+Vitamin D
+</div>
+<div
+  id="nVitaminD"
+  class="nutrient-value">
+0 µg
+</div>
+<div class="nutrient-goal">
+Track intake
+</div>
+</div>
+
+
+</div>
+
+<p class="note">
+
+Nutrition values are estimates.
+They should not be used as medical advice.
+
+</p>
+
+</div>
+
+
+<!-- =========================
+AI FOOD
+========================= -->
+
+<div class="card ai">
+
+<h2>
+🤖 Food Assistant
+</h2>
+
+<p class="sub">
+Tell YApp naturally what you ate.
+</p>
+
+<textarea
+  id="aiInput"
+  placeholder="I ate 2 eggs, an apple and a bowl of rice">
+</textarea>
+
+<button
+  id="aiButton"
+  class="btn"
+  onclick="analyzeFood()">
+
+✨ Analyze & Add
+
+</button>
+
+<div id="aiResult"></div>
+
+</div>
+
+
+<!-- =========================
+MEALS
+========================= -->
+
+<div class="card">
+
+<h2>
+🍽️ Today's meals
+</h2>
+
+<div id="mealList"></div>
+
+</div>
+
+
+<!-- =========================
+COUPLE
+========================= -->
+
+<div class="card">
+
+<h2>
+❤️ Couple
+</h2>
+
+<p class="sub">
+Give your girlfriend this code.
+She can enter it on her account.
+</p>
+
+<div
+  id="myCode"
+  class="code">
+------
+</div>
+
+<input
+  id="coupleCode"
+  placeholder="Enter partner's code">
+
+<button
+  class="btn"
+  onclick="connectPartner()">
+
+CONNECT PARTNER
+
+</button>
+
+<p
+  id="partnerStatus"
+  class="sub"
+  style="margin-top:12px">
+
+Not connected
+
+</p>
+
+</div>
+
+
+<!-- =========================
+REMINDERS
+========================= -->
+
+<div class="card">
+
+<h2>
+⏰ Meal reminders
+</h2>
+
+<div class="reminder">
+
+<div>
+
+<b>Your reminders</b>
+
+<div class="sub">
+You can turn yours off.
+</div>
+
+</div>
+
+<label class="toggle">
+
+<input
+  id="reminderToggle"
+  type="checkbox"
+  onchange="toggleReminder()">
+
+<span class="slider"></span>
+
+</label>
+
+</div>
+
+
+<input
+  id="breakfast"
+  type="time"
+  value="08:00">
+
+<input
+  id="lunch"
+  type="time"
+  value="13:00">
+
+<input
+  id="dinner"
+  type="time"
+  value="19:30">
+
+<button
+  class="btn"
+  onclick="saveReminders()">
+
+SAVE REMINDERS
+
+</button>
+
+
+<div class="reminder">
+
+<div>
+
+<b>
+🌷 Girlfriend's reminders
+</b>
+
+<div class="sub">
+Her reminders stay enabled.
+</div>
+
+</div>
+
+<label class="toggle">
+
+<input
+  type="checkbox"
+  checked
+  disabled>
+
+<span
+  class="slider"
+  style="background:#d45d8b">
+
+</span>
+
+</label>
+
+</div>
+
+</div>
+
+
+</section>
+
+</div>
+
+
+<div
+  id="toast"
+  class="toast">
+</div>
+
+
+<!-- =================================================
+FIREBASE
+================================================= -->
+
+<script type="module">
+
+
+/* ================================
+IMPORTS
+================================ */
+
+import {
+  initializeApp
+}
+from
+"https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+
+
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+}
+from
+"https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+
+
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  addDoc,
+  query,
+  where,
+  onSnapshot,
+  updateDoc,
+  getDocs
+}
+from
+"https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+
+import {
+  getAI,
+  getGenerativeModel,
+  GoogleAIBackend
+}
+from
+"https://www.gstatic.com/firebasejs/12.7.0/firebase-ai.js";
+
+
+/* ================================
+FIREBASE CONFIG
+================================ */
+
+const firebaseConfig = {
+
+  apiKey:
+  "AIzaSyAvvh1IaOgOMtMTaucHMZTULgCHG1M5pPo",
+
+  authDomain:
+  "yapp-cf99c.firebaseapp.com",
+
+  projectId:
+  "yapp-cf99c",
+
+  storageBucket:
+  "yapp-cf99c.firebasestorage.app",
+
+  messagingSenderId:
+  "105958345468",
+
+  appId:
+  "1:105958345468:web:233a59903c8e8bcc52e579",
+
+  measurementId:
+  "G-G2CMP8MH23"
+
+};
+
+
+/* ================================
+INITIALIZE FIREBASE
+================================ */
+
+const app =
+  initializeApp(
+    firebaseConfig
+  );
+
+
+const auth =
+  getAuth(app);
+
+
+const db =
+  getFirestore(app);
+
+
+/* ================================
+INITIALIZE GEMINI
+================================ */
+
+let model = null;
+
+try{
+
+  const ai =
+    getAI(
+      app,
+      {
+        backend:
+        new GoogleAIBackend()
+      }
+    );
+
+
+  model =
+    getGenerativeModel(
+      ai,
+      {
+        model:
+        "gemini-3.6-flash"
+      }
+    );
+
+
+  console.log(
+    "YApp Gemini initialized."
+  );
+
+}catch(error){
+
+  console.error(
+    "YApp AI initialization error:",
+    error
+  );
+
+}
+
+
+/* ================================
+GLOBAL STATE
+================================ */
+
+let currentUser = null;
+
+let currentProfile = null;
+
+let unsubscribeMeals = null;
+
+let unsubscribePartner = null;
+
+
+/* ================================
+HELPERS
+================================ */
+
+window.showToast =
+function(message){
+
+  const toast =
+    document.getElementById(
+      "toast"
+    );
+
+  toast.textContent =
+    message;
+
+  toast.classList.add(
+    "show"
+  );
+
+  setTimeout(
+    function(){
+
+      toast.classList.remove(
+        "show"
+      );
+
+    },
+    2500
+  );
+
+};
+
+
+window.today =
+function(){
+
+  return new Date()
+    .toISOString()
+    .slice(0,10);
+
+};
+
+
+window.escapeHTML =
+function(text){
+
+  return String(text)
+    .replace(
+      /[&<>"']/g,
+      function(c){
+
+        return {
+
+          "&":"&amp;",
+          "<":"&lt;",
+          ">":"&gt;",
+          '"':"&quot;",
+          "'":"&#039;"
+
+        }[c];
+
+      }
+    );
+
+};
+
+
+/* ================================
+PAGE SWITCH
+================================ */
+
+function showPage(page){
+
+  document
+    .getElementById("authPage")
+    .classList.toggle(
+      "hidden",
+      page !== "auth"
+    );
+
+  document
+    .getElementById("profilePage")
+    .classList.toggle(
+      "hidden",
+      page !== "profile"
+    );
+
+  document
+    .getElementById("mainPage")
+    .classList.toggle(
+      "hidden",
+      page !== "main"
+    );
+
+}
+
+
+/* ================================
+AUTH STATE
+================================ */
+
+onAuthStateChanged(
+  auth,
+  async function(user){
+
+    currentUser =
+      user;
+
+
+    if(!user){
+
+      showPage("auth");
+
+      return;
+
+    }
+
+
+    try{
+
+      const profileSnap =
+        await getDoc(
+          doc(
+            db,
+            "users",
+            user.uid
+          )
+        );
+
+
+      if(
+        !profileSnap.exists()
+      ){
+
+        showPage(
+          "profile"
+        );
+
+      }else{
+
+        currentProfile =
+          profileSnap.data();
+
+        startApp();
+
+      }
+
+    }catch(error){
+
+      console.error(
+        error
+      );
+
+      showToast(
+        "Could not load your profile."
+      );
+
+    }
+
+  }
+);
+
+
+/* ================================
+SIGN UP
+================================ */
+
+window.signup =
+async function(){
+
+  const email =
+    document
+      .getElementById("email")
+      .value
+      .trim();
+
+
+  const password =
+    document
+      .getElementById("password")
+      .value;
+
+
+  if(
+    !email ||
+    password.length < 6
+  ){
+
+    showToast(
+      "Enter an email and password of at least 6 characters."
+    );
+
+    return;
+
+  }
+
+
+  try{
+
+    await
+      createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+
+    showToast(
+      "Account created 🌸"
+    );
+
+
+  }catch(error){
+
+    console.error(
+      error
+    );
+
+    showToast(
+      error.message
+    );
+
+  }
+
+};
+
+
+/* ================================
+LOGIN
+================================ */
+
+window.login =
+async function(){
+
+  const email =
+    document
+      .getElementById("email")
+      .value
+      .trim();
+
+
+  const password =
+    document
+      .getElementById("password")
+      .value;
+
+
+  if(
+    !email ||
+    !password
+  ){
+
+    showToast(
+      "Enter your email and password."
+    );
+
+    return;
+
+  }
+
+
+  try{
+
+    await
+      signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+
+  }catch(error){
+
+    console.error(
+      error
+    );
+
+    showToast(
+      error.message
+    );
+
+  }
+
+};
+
+
+/* ================================
+CREATE PROFILE
+================================ */
+
+window.saveProfile =
+async function(){
+
+  const name =
+    document
+      .getElementById(
+        "profileName"
+      )
+      .value
+      .trim();
+
+
+  const goal =
+    Number(
+      document
+        .getElementById(
+          "profileGoal"
+        )
+        .value
+    );
+
+
+  if(
+    !name ||
+    !goal
+  ){
+
+    showToast(
+      "Enter your name and calorie goal."
+    );
+
+    return;
+
+  }
+
+
+  const code =
+    Math.random()
+      .toString(36)
+      .substring(2,8)
+      .toUpperCase();
+
+
+  const coupleId =
+    currentUser.uid +
+    "_" +
+    code;
+
+
+  currentProfile = {
+
+    name:name,
+
+    dailyGoal:goal,
+
+    partnerId:null,
+
+    coupleId:coupleId,
+
+    coupleCode:code,
+
+    reminders:{
+
+      enabled:true,
+
+      breakfast:"08:00",
+
+      lunch:"13:00",
+
+      dinner:"19:30"
+
+    }
+
+  };
+
+
+  await setDoc(
+    doc(
+      db,
+      "users",
+      currentUser.uid
+    ),
+    currentProfile
+  );
+
+
+  await setDoc(
+    doc(
+      db,
+      "couples",
+      coupleId
+    ),
+    {
+
+      code:code,
+
+      members:[
+        currentUser.uid
+      ],
+
+      createdBy:
+        currentUser.uid,
+
+      createdAt:
+        new Date().toISOString()
+
+    }
+  );
+
+
+  showToast(
+    "Profile created 🌸"
+  );
+
+
+  startApp();
+
+};
+
+
+/* ================================
+START APP
+================================ */
+
+function startApp(){
+
+  showPage("main");
+
+
+  document
+    .getElementById(
+      "welcome"
+    )
+    .textContent =
+      currentProfile.name +
+      " ❤️";
+
+
+  document
+    .getElementById(
+      "myGoal"
+    )
+    .textContent =
+      "/ " +
+      currentProfile.dailyGoal +
+      " kcal";
+
+
+  document
+    .getElementById(
+      "myCode"
+    )
+    .textContent =
+      currentProfile.coupleCode;
+
+
+  document
+    .getElementById(
+      "date"
+    )
+    .textContent =
+      new Date()
+        .toLocaleDateString(
+          undefined,
+          {
+            weekday:"long",
+            day:"numeric",
+            month:"long"
+          }
+        );
+
+
+  loadReminders();
+
+  listenToMyMeals();
+
+  listenToPartnerMeals();
+
+}
+
+
+/* ================================
+MY FOOD LISTENER
+================================ */
+
+function listenToMyMeals(){
+
+  if(
+    unsubscribeMeals
+  ){
+
+    unsubscribeMeals();
+
+  }
+
+
+  const q =
+    query(
+      collection(
+        db,
+        "foodLogs"
+      ),
+
+      where(
+        "userId",
+        "==",
+        currentUser.uid
+      )
+    );
+
+
+  unsubscribeMeals =
+    onSnapshot(
+      q,
+
+      function(snapshot){
+
+        const meals = [];
+
+
+        snapshot.forEach(
+          function(item){
+
+            meals.push({
+
+              id:item.id,
+
+              ...item.data()
+
+            });
+
+          }
+        );
+
+
+        renderMyMeals(
+          meals
+        );
+
+      },
+
+      function(error){
+
+        console.error(
+          "Food listener:",
+          error
+        );
+
+      }
+    );
+
+}
+
+
+/* ================================
+PARTNER LISTENER
+================================ */
+
+async function listenToPartnerMeals(){
+
+  if(
+    !currentProfile.partnerId
+  ){
+
+    document
+      .getElementById(
+        "partnerStatus"
+      )
+      .textContent =
+        "Not connected";
+
+    return;
+
+  }
+
+
+  if(
+    unsubscribePartner
+  ){
+
+    unsubscribePartner();
+
+  }
+
+
+  const q =
+    query(
+      collection(
+        db,
+        "foodLogs"
+      ),
+
+      where(
+        "userId",
+        "==",
+        currentProfile.partnerId
+      )
+    );
+
+
+  unsubscribePartner =
+    onSnapshot(
+      q,
+
+      async function(snapshot){
+
+        const meals = [];
+
+
+        snapshot.forEach(
+          function(item){
+
+            meals.push({
+
+              id:item.id,
+
+              ...item.data()
+
+            });
+
+          }
+        );
+
+
+        renderPartnerMeals(
+          meals
+        );
+
+
+        try{
+
+          const partnerSnap =
+            await getDoc(
+              doc(
+                db,
+                "users",
+                currentProfile.partnerId
+              )
+            );
+
+
+          if(
+            partnerSnap.exists()
+          ){
+
+            const partner =
+              partnerSnap.data();
+
+
+            document
+              .getElementById(
+                "partnerGoal"
+              )
+              .textContent =
+                "/ " +
+                (
+                  partner.dailyGoal ||
+                  1800
+                ) +
+                " kcal";
+
+
+            renderPartnerGoal =
+              partner.dailyGoal ||
+              1800;
+
+          }
+
+        }catch(error){
+
+          console.error(
+            error
+          );
+
+        }
+
+      },
+
+      function(error){
+
+        console.error(
+          "Partner listener:",
+          error
+        );
+
+      }
+    );
+
+}
+
+
+/* ================================
+PARTNER GOAL
+================================ */
+
+let renderPartnerGoal = 1800;
+
+
+/* ================================
+CALCULATE NUTRIENTS
+================================ */
+
+function calculateTotals(
+  meals
+){
+
+  const totals = {
+
+    calories:0,
+
+    protein:0,
+
+    carbs:0,
+
+    fat:0,
+
+    fiber:0,
+
+    sugar:0,
+
+    sodium:0,
+
+    calcium:0,
+
+    iron:0,
+
+    potassium:0,
+
+    vitaminC:0,
+
+    vitaminA:0,
+
+    vitaminD:0
+
+  };
+
+
+  meals.forEach(
+    function(m){
+
+      totals.calories +=
+        Number(m.calories) || 0;
+
+      totals.protein +=
+        Number(m.protein) || 0;
+
+      totals.carbs +=
+        Number(m.carbs) || 0;
+
+      totals.fat +=
+        Number(m.fat) || 0;
+
+      totals.fiber +=
+        Number(m.fiber) || 0;
+
+      totals.sugar +=
+        Number(m.sugar) || 0;
+
+      totals.sodium +=
+        Number(m.sodium) || 0;
+
+      totals.calcium +=
+        Number(m.calcium) || 0;
+
+      totals.iron +=
+        Number(m.iron) || 0;
+
+      totals.potassium +=
+        Number(m.potassium) || 0;
+
+      totals.vitaminC +=
+        Number(m.vitaminC) || 0;
+
+      totals.vitaminA +=
+        Number(m.vitaminA) || 0;
+
+      totals.vitaminD +=
+        Number(m.vitaminD) || 0;
+
+    }
+  );
+
+
+  return totals;
+
+}
+
+
+/* ================================
+RENDER MY MEALS
+================================ */
+
+function renderMyMeals(
+  meals
+){
+
+  const todayMeals =
+    meals.filter(
+      function(m){
+
+        return m.date === today();
+
+      }
+    );
+
+
+  const totals =
+    calculateTotals(
+      todayMeals
+    );
+
+
+  renderNutrition(
+    totals
+  );
+
+
+  const list =
+    document.getElementById(
+      "mealList"
+    );
+
+
+  if(
+    todayMeals.length === 0
+  ){
+
+    list.innerHTML =
+      `
+      <div class="empty">
+        No meals logged yet 🌸
+      </div>
+      `;
+
+    return;
+
+  }
+
+
+  todayMeals.sort(
+    function(a,b){
+
+      return String(
+        b.createdAt || ""
+      ).localeCompare(
+        String(
+          a.createdAt || ""
+        )
+      );
+
+    }
+  );
+
+
+  list.innerHTML =
+    todayMeals
+      .map(
+        function(m){
+
+          return `
+
+          <div class="meal">
+
+            <div>
+
+              <div class="meal-name">
+                ${escapeHTML(
+                  m.food
+                )}
+              </div>
+
+              <div class="meal-meta">
+
+                ${m.time || ""}
+
+                · Protein
+                ${Number(
+                  m.protein || 0
+                ).toFixed(1)}g
+
+                · Fiber
+                ${Number(
+                  m.fiber || 0
+                ).toFixed(1)}g
+
+              </div>
+
+            </div>
+
+            <div class="meal-cal">
+
+              ${Math.round(
+                m.calories || 0
+              )}
+
+              kcal
+
+            </div>
+
+          </div>
+
+          `;
+
+        }
+      )
+      .join("");
+
+}
+
+
+/* ================================
+RENDER NUTRITION
+================================ */
+
+function renderNutrition(
+  t
+){
+
+  document
+    .getElementById(
+      "myCalories"
+    )
+    .textContent =
+      Math.round(
+        t.calories
+      );
+
+
+  document
+    .getElementById(
+      "myProgress"
+    )
+    .style.width =
+      Math.min(
+        100,
+        (
+          t.calories /
+          currentProfile.dailyGoal
+        ) * 100
+      ) +
+      "%";
+
+
+  document
+    .getElementById(
+      "nProtein"
+    )
+    .textContent =
+      t.protein.toFixed(1) +
+      " g";
+
+
+  document
+    .getElementById(
+      "nCarbs"
+    )
+    .textContent =
+      t.carbs.toFixed(1) +
+      " g";
+
+
+  document
+    .getElementById(
+      "nFat"
+    )
+    .textContent =
+      t.fat.toFixed(1) +
+      " g";
+
+
+  document
+    .getElementById(
+      "nFiber"
+    )
+    .textContent =
+      t.fiber.toFixed(1) +
+      " g";
+
+
+  document
+    .getElementById(
+      "nSugar"
+    )
+    .textContent =
+      t.sugar.toFixed(1) +
+      " g";
+
+
+  document
+    .getElementById(
+      "nSodium"
+    )
+    .textContent =
+      Math.round(
+        t.sodium
+      ) +
+      " mg";
+
+
+  document
+    .getElementById(
+      "nCalcium"
+    )
+    .textContent =
+      Math.round(
+        t.calcium
+      ) +
+      " mg";
+
+
+  document
+    .getElementById(
+      "nIron"
+    )
+    .textContent =
+      t.iron.toFixed(1) +
+      " mg";
+
+
+  document
+    .getElementById(
+      "nPotassium"
+    )
+    .textContent =
+      Math.round(
+        t.potassium
+      ) +
+      " mg";
+
+
+  document
+    .getElementById(
+      "nVitaminC"
+    )
+    .textContent =
+      t.vitaminC.toFixed(1) +
+      " mg";
+
+
+  document
+    .getElementById(
+      "nVitaminA"
+    )
+    .textContent =
+      Math.round(
+        t.vitaminA
+      ) +
+      " µg";
+
+
+  document
+    .getElementById(
+      "nVitaminD"
+    )
+    .textContent =
+      t.vitaminD.toFixed(1) +
+      " µg";
+
+}
+
+
+/* ================================
+PARTNER MEALS
+================================ */
+
+function renderPartnerMeals(
+  meals
+){
+
+  const todayMeals =
+    meals.filter(
+      function(m){
+
+        return m.date === today();
+
+      }
+    );
+
+
+  const totals =
+    calculateTotals(
+      todayMeals
+    );
+
+
+  document
+    .getElementById(
+      "partnerCalories"
+    )
+    .textContent =
+      Math.round(
+        totals.calories
+      );
+
+
+  document
+    .getElementById(
+      "partnerProgress"
+    )
+    .style.width =
+      Math.min(
+        100,
+        (
+          totals.calories /
+          renderPartnerGoal
+        ) * 100
+      ) +
+      "%";
+
+
+  document
+    .getElementById(
+      "partnerStatus"
+    )
+    .textContent =
+      "❤️ Connected";
+
+}
+
+
+/* ================================
+AI FOOD ANALYSIS
+================================ */
+
+window.analyzeFood =
+async function(){
+
+  const input =
+    document.getElementById(
+      "aiInput"
+    );
+
+
+  const button =
+    document.getElementById(
+      "aiButton"
+    );
+
+
+  const resultBox =
+    document.getElementById(
+      "aiResult"
+    );
+
+
+  const text =
+    input.value.trim();
+
+
+  if(
+    !text
+  ){
+
+    showToast(
+      "Tell YApp what you ate 🌸"
+    );
+
+    return;
+
+  }
+
+
+  if(
+    !model
+  ){
+
+    showToast(
+      "Gemini AI is not connected."
+    );
+
+    return;
+
+  }
+
+
+  button.disabled = true;
+
+  button.textContent =
+    "🌸 Thinking...";
+
+
+  try{
+
+    const prompt = `
+
+You are the nutrition engine for YApp.
+
+The user wrote:
+
+"${text}"
+
+Identify every food and drink.
+
+Understand:
+
+- natural language
+- quantities
+- serving sizes
+- Indian foods
+- international foods
+- mixed dishes
+- beverages
+
+For EACH food return:
+
+name
+quantity
+unit
+calories
+protein_g
+carbs_g
+fat_g
+fiber_g
+sugar_g
+sodium_mg
+calcium_mg
+iron_mg
+potassium_mg
+vitamin_c_mg
+vitamin_a_ug
+vitamin_d_ug
+confidence
+
+Return ONLY valid JSON.
+
+Use this exact structure:
+
+{
+  "foods":[
+    {
+      "name":"apple",
+      "quantity":1,
+      "unit":"medium",
+      "calories":95,
+      "protein_g":0.5,
+      "carbs_g":25,
+      "fat_g":0.3,
+      "fiber_g":4.4,
+      "sugar_g":19,
+      "sodium_mg":2,
+      "calcium_mg":11,
+      "iron_mg":0.2,
+      "potassium_mg":195,
+      "vitamin_c_mg":8.4,
+      "vitamin_a_ug":6,
+      "vitamin_d_ug":0,
+      "confidence":0.95
+    }
+  ],
+
+  "totalCalories":95,
+  "totalProtein":0.5,
+  "totalCarbs":25,
+  "totalFat":0.3,
+  "totalFiber":4.4,
+  "totalSugar":19,
+  "totalSodium":2,
+  "totalCalcium":11,
+  "totalIron":0.2,
+  "totalPotassium":195,
+  "totalVitaminC":8.4,
+  "totalVitaminA":6,
+  "totalVitaminD":0,
+
+  "explanation":
+  "Estimated using a typical serving size."
+}
+
+Nutrition values are estimates.
+
+If the quantity is unclear,
+use a reasonable serving estimate.
+
+Lower confidence when uncertain.
+
+Do NOT return markdown.
+
+Return ONLY JSON.
+
+`;
+
+
+    const result =
+      await model.generateContent(
+        prompt
+      );
+
+
+    let raw =
+      result.response
+        .text()
+        .trim();
+
+
+    raw =
+      raw
+        .replace(
+          /```json/gi,
+          ""
+        )
+        .replace(
+          /```/g,
+          ""
+        )
+        .trim();
+
+
+    const data =
+      JSON.parse(
+        raw
+      );
+
+
+    if(
+      !data.foods ||
+      data.foods.length === 0
+    ){
+
+      throw new Error(
+        "No food detected."
+      );
+
+    }
+
+
+    /* ========================
+       SAVE FOODS
+    ======================== */
+
+    for(
+      const food
+      of data.foods
+    ){
+
+      await addDoc(
+        collection(
+          db,
+          "foodLogs"
+        ),
+        {
+
+          userId:
+            currentUser.uid,
+
+          coupleId:
+            currentProfile.coupleId ||
+            null,
+
+          food:
+            `${food.quantity} ${food.unit} ${food.name}`,
+
+          calories:
+            Number(
+              food.calories
+            ) || 0,
+
+          protein:
+            Number(
+              food.protein_g
+            ) || 0,
+
+          carbs:
+            Number(
+              food.carbs_g
+            ) || 0,
+
+          fat:
+            Number(
+              food.fat_g
+            ) || 0,
+
+          fiber:
+            Number(
+              food.fiber_g
+            ) || 0,
+
+          sugar:
+            Number(
+              food.sugar_g
+            ) || 0,
+
+          sodium:
+            Number(
+              food.sodium_mg
+            ) || 0,
+
+          calcium:
+            Number(
+              food.calcium_mg
+            ) || 0,
+
+          iron:
+            Number(
+              food.iron_mg
+            ) || 0,
+
+          potassium:
+            Number(
+              food.potassium_mg
+            ) || 0,
+
+          vitaminC:
+            Number(
+              food.vitamin_c_mg
+            ) || 0,
+
+          vitaminA:
+            Number(
+              food.vitamin_a_ug
+            ) || 0,
+
+          vitaminD:
+            Number(
+              food.vitamin_d_ug
+            ) || 0,
+
+          confidence:
+            Number(
+              food.confidence
+            ) || 0,
+
+          date:
+            today(),
+
+          time:
+            new Date()
+              .toLocaleTimeString(
+                [],
+                {
+                  hour:"2-digit",
+                  minute:"2-digit"
+                }
+              ),
+
+          createdAt:
+            new Date()
+              .toISOString()
+
+        }
+
+      );
+
+    }
+
+
+    /* ========================
+       SHOW RESULT
+    ======================== */
+
+    resultBox.innerHTML = `
+
+      <div class="ai-result">
+
+        <b>
+          🌸 YApp understood:
+        </b>
+
+        <br><br>
+
+        ${
+          data.foods
+            .map(
+              function(food){
+
+                return `
+
+                <div class="food-item">
+
+                  <b>
+                    ${escapeHTML(
+                      food.name
+                    )}
+                  </b>
+
+                  <br>
+
+                  ${food.quantity}
+                  ${escapeHTML(
+                    food.unit
+                  )}
+
+                  ·
+
+                  ${Math.round(
+                    food.calories
+                  )}
+                  kcal
+
+                  <br>
+
+                  Protein:
+                  ${Number(
+                    food.protein_g
+                  ).toFixed(1)}g
+
+                  ·
+
+                  Fiber:
+                  ${Number(
+                    food.fiber_g
+                  ).toFixed(1)}g
+
+                  <br>
+
+                  Confidence:
+                  ${Math.round(
+                    Number(
+                      food.confidence
+                    ) * 100
+                  )}%
+
+                </div>
+
+                `;
+
+              }
+            )
+            .join("")
+        }
+
+        <br>
+
+        <b>
+          Total:
+          ${Math.round(
+            data.totalCalories
+          )}
+          kcal
+        </b>
+
+        <br>
+
+        Protein:
+        ${Number(
+          data.totalProtein
+        ).toFixed(1)}g
+
+        ·
+
+        Fiber:
+        ${Number(
+          data.totalFiber
+        ).toFixed(1)}g
+
+        <br><br>
+
+        <span class="note">
+
+          ${escapeHTML(
+            data.explanation || ""
+          )}
+
+        </span>
+
+      </div>
+
+    `;
+
+
+    input.value = "";
+
+
+    showToast(
+      "🌸 Food saved to the cloud"
+    );
+
+
+  }catch(error){
+
+    console.error(
+      "YApp AI error:",
+      error
+    );
+
+
+    resultBox.innerHTML = `
+
+      <div class="ai-result">
+
+        ⚠️
+
+        ${escapeHTML(
+          error.message
+        )}
+
+        <br><br>
+
+        <span class="note">
+
+          If this is a Firebase AI
+          error, send me the first
+          red error from F12 → Console.
+
+        </span>
+
+      </div>
+
+    `;
+
+
+    showToast(
+      "AI analysis failed."
+    );
+
+
+  }finally{
+
+    button.disabled = false;
+
+    button.textContent =
+      "✨ Analyze & Add";
+
+  }
+
+};
+
+
+/* ================================
+COUPLE CONNECT
+================================ */
+
+window.connectPartner =
+async function(){
+
+  const code =
+    document
+      .getElementById(
+        "coupleCode"
+      )
+      .value
+      .trim()
+      .toUpperCase();
+
+
+  if(
+    !code
+  ){
+
+    showToast(
+      "Enter your partner's code."
+    );
+
+    return;
+
+  }
+
+
+  try{
+
+    const q =
+      query(
+        collection(
+          db,
+          "couples"
+        ),
+
+        where(
+          "code",
+          "==",
+          code
+        )
+      );
+
+
+    const snapshot =
+      await getDocs(q);
+
+
+    if(
+      snapshot.empty
+    ){
+
+      showToast(
+        "Couple code not found."
+      );
+
+      return;
+
+    }
+
+
+    const coupleDoc =
+      snapshot.docs[0];
+
+
+    const couple =
+      coupleDoc.data();
+
+
+    const coupleId =
+      coupleDoc.id;
+
+
+    if(
+      couple.members
+        .includes(
+          currentUser.uid
+        )
+    ){
+
+      showToast(
+        "You're already connected."
+      );
+
+      return;
+
+    }
+
+
+    if(
+      couple.members.length >= 2
+    ){
+
+      showToast(
+        "This couple already has two people."
+      );
+
+      return;
+
+    }
+
+
+    const partnerId =
+      couple.members[0];
+
+
+    const members = [
+      ...couple.members,
+      currentUser.uid
+    ];
+
+
+    await updateDoc(
+      doc(
+        db,
+        "couples",
+        coupleId
+      ),
+      {
+
+        members:
+          members
+
+      }
+    );
+
+
+    await updateDoc(
+      doc(
+        db,
+        "users",
+        currentUser.uid
+      ),
+      {
+
+        coupleId:
+          coupleId,
+
+        partnerId:
+          partnerId
+
+      }
+    );
+
+
+    currentProfile.coupleId =
+      coupleId;
+
+
+    currentProfile.partnerId =
+      partnerId;
+
+
+    document
+      .getElementById(
+        "partnerStatus"
+      )
+      .textContent =
+        "❤️ Connected";
+
+
+    listenToPartnerMeals();
+
+
+    showToast(
+      "❤️ You're connected!"
+    );
+
+
+  }catch(error){
+
+    console.error(
+      "Partner connection error:",
+      error
+    );
+
+
+    showToast(
+      "Could not connect partner."
+    );
+
+  }
+
+};
+
+
+/* ================================
+REMINDERS
+================================ */
+
+window.toggleReminder =
+async function(){
+
+  const enabled =
+    document
+      .getElementById(
+        "reminderToggle"
+      )
+      .checked;
+
+
+  await updateDoc(
+    doc(
+      db,
+      "users",
+      currentUser.uid
+    ),
+    {
+
+      "reminders.enabled":
+        enabled
+
+    }
+  );
+
+
+  if(
+    !currentProfile.reminders
+  ){
+
+    currentProfile.reminders =
+      {};
+
+  }
+
+
+  currentProfile
+    .reminders
+    .enabled =
+      enabled;
+
+
+  showToast(
+    enabled
+      ? "Reminders ON 🌸"
+      : "Reminders OFF"
+  );
+
+};
+
+
+window.saveReminders =
+async function(){
+
+  const breakfast =
+    document
+      .getElementById(
+        "breakfast"
+      )
+      .value;
+
+
+  const lunch =
+    document
+      .getElementById(
+        "lunch"
+      )
+      .value;
+
+
+  const dinner =
+    document
+      .getElementById(
+        "dinner"
+      )
+      .value;
+
+
+  await updateDoc(
+    doc(
+      db,
+      "users",
+      currentUser.uid
+    ),
+    {
+
+      "reminders.breakfast":
+        breakfast,
+
+      "reminders.lunch":
+        lunch,
+
+      "reminders.dinner":
+        dinner
+
+    }
+  );
+
+
+  showToast(
+    "Reminder times saved 🌸"
+  );
+
+};
+
+
+function loadReminders(){
+
+  const reminders =
+    currentProfile.reminders;
+
+
+  if(
+    !reminders
+  ){
+
+    return;
+
+  }
+
+
+  document
+    .getElementById(
+      "reminderToggle"
+    )
+    .checked =
+      reminders.enabled !== false;
+
+
+  document
+    .getElementById(
+      "breakfast"
+    )
+    .value =
+      reminders.breakfast ||
+      "08:00";
+
+
+  document
+    .getElementById(
+      "lunch"
+    )
+    .value =
+      reminders.lunch ||
+      "13:00";
+
+
+  document
+    .getElementById(
+      "dinner"
+    )
+    .value =
+      reminders.dinner ||
+      "19:30";
+
+}
+
+
+/* ================================
+LOGOUT
+================================ */
+
+window.logout =
+async function(){
+
+  if(
+    unsubscribeMeals
+  ){
+
+    unsubscribeMeals();
+
+  }
+
+
+  if(
+    unsubscribePartner
+  ){
+
+    unsubscribePartner();
+
+  }
+
+
+  await signOut(
+    auth
+  );
+
+};
+
+
+console.log(
+  "🌸 YApp loaded successfully."
+);
+
+</script>
+
+</body>
+</html>
