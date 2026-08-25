@@ -2862,131 +2862,140 @@ Return ONLY JSON.
 COUPLE CONNECT
 ================================ */
 
-window.connectPartner =
-async function(){
+window.connectPartner = async function(){
 
   const code =
     document
-      .getElementById(
-        "coupleCode"
-      )
+      .getElementById("coupleCode")
       .value
       .trim()
       .toUpperCase();
 
-
-  if(
-    !code
-  ){
-
-    showToast(
-      "Enter your partner's code."
-    );
-
+  if (!code) {
+    showToast("Enter your partner's code.");
     return;
-
   }
 
+  if (!currentUser) {
+    showToast("Please log in first.");
+    return;
+  }
 
-  try{
+  try {
 
-    const q =
-      query(
-        collection(
-          db,
-          "couples"
-        ),
+    /*
+     * IMPORTANT:
+     * The couple document ID is now the couple code.
+     *
+     * Example:
+     *
+     * couples/ABC123
+     */
 
-        where(
-          "code",
-          "==",
-          code
-        )
+    const coupleRef =
+      doc(
+        db,
+        "couples",
+        code
       );
 
+    const coupleSnap =
+      await getDoc(
+        coupleRef
+      );
 
-    const snapshot =
-      await getDocs(q);
-
-
-    if(
-      snapshot.empty
-    ){
+    if (!coupleSnap.exists()) {
 
       showToast(
         "Couple code not found."
       );
 
       return;
-
     }
 
-
-    const coupleDoc =
-      snapshot.docs[0];
-
-
     const couple =
-      coupleDoc.data();
+      coupleSnap.data();
+
+    const members =
+      Array.isArray(couple.members)
+        ? couple.members
+        : [];
 
 
-    const coupleId =
-      coupleDoc.id;
+    /*
+     * Already connected?
+     */
 
-
-    if(
-      couple.members
-        .includes(
-          currentUser.uid
-        )
-    ){
+    if (
+      members.includes(
+        currentUser.uid
+      )
+    ) {
 
       showToast(
-        "You're already connected."
+        "You're already connected ❤️"
       );
 
       return;
-
     }
 
 
-    if(
-      couple.members.length >= 2
-    ){
+    /*
+     * Only two people per couple.
+     */
+
+    if (
+      members.length >= 2
+    ) {
 
       showToast(
         "This couple already has two people."
       );
 
       return;
-
     }
 
 
+    /*
+     * The first member is the partner.
+     */
+
     const partnerId =
-      couple.members[0];
+      members[0];
 
 
-    const members = [
-      ...couple.members,
+    if (!partnerId) {
+
+      showToast(
+        "This couple is not ready yet."
+      );
+
+      return;
+    }
+
+
+    /*
+     * Add the second member.
+     */
+
+    const newMembers = [
+      ...members,
       currentUser.uid
     ];
 
 
     await updateDoc(
-      doc(
-        db,
-        "couples",
-        coupleId
-      ),
+      coupleRef,
       {
-
         members:
-          members
-
+          newMembers
       }
     );
 
+
+    /*
+     * Update YOUR profile.
+     */
 
     await updateDoc(
       doc(
@@ -2995,24 +3004,29 @@ async function(){
         currentUser.uid
       ),
       {
-
         coupleId:
-          coupleId,
+          code,
 
         partnerId:
           partnerId
-
       }
     );
 
 
-    currentProfile.coupleId =
-      coupleId;
+    /*
+     * Update local state.
+     */
 
+    currentProfile.coupleId =
+      code;
 
     currentProfile.partnerId =
       partnerId;
 
+
+    /*
+     * Update UI.
+     */
 
     document
       .getElementById(
@@ -3022,30 +3036,40 @@ async function(){
         "❤️ Connected";
 
 
+    document
+      .getElementById(
+        "coupleCode"
+      )
+      .value = "";
+
+
+    /*
+     * Start listening to partner food.
+     */
+
     listenToPartnerMeals();
 
 
     showToast(
-      "❤️ You're connected!"
+      "❤️ Partner connected!"
     );
 
 
-  }catch(error){
+  } catch (error) {
 
     console.error(
-      "Partner connection error:",
+      "CONNECT PARTNER ERROR:",
       error
     );
 
-
     showToast(
-      "Could not connect partner."
+      "Could not connect: " +
+      error.message
     );
 
   }
 
 };
-
 
 /* ================================
 REMINDERS
