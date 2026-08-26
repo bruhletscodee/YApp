@@ -2861,15 +2861,13 @@ Return ONLY JSON.
 /* ================================
 COUPLE CONNECT
 ================================ */
-
 window.connectPartner = async function(){
 
-  const code =
-    document
-      .getElementById("coupleCode")
-      .value
-      .trim()
-      .toUpperCase();
+  const code = document
+    .getElementById("coupleCode")
+    .value
+    .trim()
+    .toUpperCase();
 
   if (!code) {
     showToast("Enter your partner's code.");
@@ -2883,70 +2881,62 @@ window.connectPartner = async function(){
 
   try {
 
-    /*
-     * IMPORTANT:
-     * The couple document ID is now the couple code.
-     *
-     * Example:
-     *
-     * couples/ABC123
-     */
+    console.log("STEP 1: Code =", code);
 
-    const coupleRef =
-      doc(
-        db,
-        "couples",
-        code
-      );
+    const coupleRef = doc(
+      db,
+      "couples",
+      code
+    );
 
-    const coupleSnap =
-      await getDoc(
-        coupleRef
-      );
+    console.log("STEP 2: Reading couples/" + code);
+
+    const coupleSnap = await getDoc(
+      coupleRef
+    );
+
+    console.log(
+      "STEP 3: Read successful",
+      coupleSnap.exists()
+    );
 
     if (!coupleSnap.exists()) {
 
       showToast(
-        "Couple code not found."
+        "No couple found with code " + code
       );
 
       return;
     }
 
-    const couple =
-      coupleSnap.data();
+    const couple = coupleSnap.data();
 
-    const members =
-      Array.isArray(couple.members)
-        ? couple.members
-        : [];
+    console.log(
+      "STEP 4: Couple data =",
+      couple
+    );
 
+    const members = Array.isArray(
+      couple.members
+    )
+      ? couple.members
+      : [];
 
-    /*
-     * Already connected?
-     */
+    console.log(
+      "STEP 5: Members =",
+      members
+    );
 
-    if (
-      members.includes(
-        currentUser.uid
-      )
-    ) {
+    if (members.includes(currentUser.uid)) {
 
       showToast(
-        "You're already connected ❤️"
+        "Already connected ❤️"
       );
 
       return;
     }
 
-
-    /*
-     * Only two people per couple.
-     */
-
-    if (
-      members.length >= 2
-    ) {
+    if (members.length >= 2) {
 
       showToast(
         "This couple already has two people."
@@ -2955,23 +2945,112 @@ window.connectPartner = async function(){
       return;
     }
 
+    const partnerId = members[0];
 
-    /*
-     * The first member is the partner.
-     */
+    console.log(
+      "STEP 6: Partner UID =",
+      partnerId
+    );
 
-    const partnerId =
-      members[0];
+    console.log(
+      "STEP 7: Updating couple..."
+    );
+
+    await updateDoc(
+      coupleRef,
+      {
+        members: [
+          ...members,
+          currentUser.uid
+        ]
+      }
+    );
+
+    console.log(
+      "STEP 8: Couple updated"
+    );
 
 
-    if (!partnerId) {
+    console.log(
+      "STEP 9: Updating my profile..."
+    );
 
-      showToast(
-        "This couple is not ready yet."
-      );
+    await updateDoc(
+      doc(
+        db,
+        "users",
+        currentUser.uid
+      ),
+      {
+        coupleId: code,
+        partnerId: partnerId
+      }
+    );
 
-      return;
-    }
+    console.log(
+      "STEP 10: Profile updated"
+    );
+
+
+    currentProfile.coupleId =
+      code;
+
+    currentProfile.partnerId =
+      partnerId;
+
+
+    document
+      .getElementById(
+        "partnerStatus"
+      )
+      .textContent =
+        "❤️ Connected";
+
+
+    document
+      .getElementById(
+        "coupleCode"
+      )
+      .value = "";
+
+
+    listenToPartnerMeals();
+
+    showToast(
+      "❤️ Partner connected!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "========== YAPP CONNECT ERROR =========="
+    );
+
+    console.error(
+      error
+    );
+
+    console.error(
+      "CODE:",
+      code
+    );
+
+    console.error(
+      "USER:",
+      currentUser
+        ? currentUser.uid
+        : "NO USER"
+    );
+
+    showToast(
+      "Firebase error: " +
+      error.code
+    );
+
+  }
+
+};
 
 
     /*
