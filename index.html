@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V18 CANONICAL COUPLE - BOTH PHONES SHARE ONE ID -->
 <!-- YAPP VERSION: V17 COMPLETE PARTNER SYNC -->
 <!-- YAPP VERSION: V16 REAL PARTNER FIX - COUPLE SOURCE OF TRUTH -->
 <!-- YAPP VERSION: V16 REAL PARTNER FIX - COUPLE SOURCE OF TRUTH -->
@@ -1409,7 +1410,14 @@ async function startApp() {
     });
 
   loadReminders();
+
+  /*
+   * V18: normalize both sides onto ONE canonical couple ID before
+   * starting food listeners.
+   */
+  await normalizeCurrentCouple();
   await migrateOwnFoodLogsToCouple();
+
   listenToMyMeals();
   resolvePartnerFromCouple();
   listenToCoupleChanges();
@@ -1418,6 +1426,118 @@ async function startApp() {
 /* -------------------------
    Food listeners
 ------------------------- */
+
+function canonicalCoupleId(uidA, uidB) {
+  const ids = [String(uidA || ""), String(uidB || "")]
+    .filter(Boolean)
+    .sort();
+
+  if (ids.length !== 2) return null;
+
+  /*
+   * Stable ID derived from BOTH Firebase UIDs.
+   * Both phones therefore converge on exactly the same couple ID.
+   */
+  return "pair_" + ids[0] + "_" + ids[1];
+}
+
+async function normalizeCurrentCouple() {
+  if (!currentUser || !currentProfile || !db) return null;
+
+  const currentCoupleId = currentProfile.coupleId || null;
+
+  try {
+    /*
+     * Find the other member from the couple document currently stored
+     * on this account. This works even when the two phones currently
+     * have different legacy couple IDs.
+     */
+    if (currentCoupleId) {
+      const snap = await db.collection("couples")
+        .doc(currentCoupleId)
+        .get();
+
+      if (snap.exists) {
+        const data = snap.data() || {};
+        const members = Array.isArray(data.members)
+          ? data.members.filter(Boolean)
+          : [];
+
+        const partnerId =
+          members.find(uid => uid !== currentUser.uid) || null;
+
+        if (partnerId) {
+          const canonicalId =
+            canonicalCoupleId(currentUser.uid, partnerId);
+
+          if (canonicalId) {
+            currentProfile.coupleId = canonicalId;
+            currentProfile.partnerId = partnerId;
+
+            /*
+             * Save the canonical ID to THIS user's profile.
+             * We never modify the partner's profile from this device.
+             */
+            await db.collection("users")
+              .doc(currentUser.uid)
+              .update({
+                coupleId: canonicalId,
+                partnerId: partnerId
+              });
+
+            /*
+             * Create/merge the canonical couple document.
+             * Existing legacy documents remain untouched.
+             */
+            const canonicalRef =
+              db.collection("couples").doc(canonicalId);
+
+            const canonicalSnap = await canonicalRef.get();
+
+            if (!canonicalSnap.exists) {
+              await canonicalRef.set({
+                code: canonicalId,
+                members: [currentUser.uid, partnerId],
+                createdBy: currentUser.uid,
+                migratedFrom: currentCoupleId,
+                createdAt: new Date().toISOString()
+              });
+            } else {
+              const canonicalData = canonicalSnap.data() || {};
+              const canonicalMembers =
+                Array.isArray(canonicalData.members)
+                  ? canonicalData.members
+                  : [];
+
+              const merged = [...new Set([
+                ...canonicalMembers,
+                currentUser.uid,
+                partnerId
+              ])];
+
+              await canonicalRef.update({
+                members: merged
+              });
+            }
+
+            console.log(
+              "🌸 V18 canonical couple:",
+              canonicalId,
+              "| old:",
+              currentCoupleId
+            );
+
+            return canonicalId;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("V18 normalizeCurrentCouple error:", error);
+  }
+
+  return currentProfile.coupleId || null;
+}
 
 async function migrateOwnFoodLogsToCouple() {
   if (!currentUser || !currentProfile || !currentProfile.coupleId) return;
@@ -1620,7 +1740,6 @@ function listenToPartnerMeals() {
   }
 
   if (!currentProfile || !currentProfile.coupleId || !currentUser) {
-    console.warn("🌸 V17 partner listener waiting for couple/current user.");
     return;
   }
 
@@ -1628,117 +1747,96 @@ function listenToPartnerMeals() {
   const myUid = currentUser.uid;
 
   /*
-   * V17: the couple document is the source of truth.
-   * We do NOT trust a stale partnerId stored in a user profile.
+   * V18 listens to the canonical couple only.
    */
-  db.collection("couples").doc(coupleId).get()
-    .then(function(coupleSnap) {
-      if (!coupleSnap.exists) {
-        console.warn("🌸 V17: couple document not found:", coupleId);
-        return;
-      }
+  const q = db.collection("foodLogs")
+    .where("coupleId", "==", coupleId);
 
-      const couple = coupleSnap.data() || {};
-      const members = Array.isArray(couple.members)
-        ? couple.members.filter(Boolean)
-        : [];
+  unsubscribePartner = q.onSnapshot(
+    function(snapshot) {
+      const partnerMeals = [];
+      const myMeals = [];
+      const unknownMeals = [];
 
-      const partnerUid = members.find(function(uid) {
-        return uid !== myUid;
-      }) || null;
+      snapshot.forEach(function(item) {
+        const data = item.data() || {};
+        const meal = {
+          id: item.id,
+          ...data
+        };
 
-      if (!partnerUid) {
-        console.log("🌸 V17: waiting for second member.");
-        return;
-      }
-
-      currentProfile.partnerId = partnerUid;
-
-      console.log(
-        "🌸 V17 MEMBERS:",
-        "me =", myUid,
-        "| partner =", partnerUid,
-        "| couple =", coupleId
-      );
+        if (data.userId === myUid) {
+          myMeals.push(meal);
+        } else {
+          partnerMeals.push(meal);
+        }
+      });
 
       /*
-       * One simple Firestore query. No composite index required.
+       * Find the partner from the canonical couple document if possible.
+       * This keeps the UI correct even when partnerId is stale.
        */
-      const q = db.collection("foodLogs")
-        .where("coupleId", "==", coupleId);
+      db.collection("couples").doc(coupleId).get()
+        .then(function(coupleSnap) {
+          if (coupleSnap.exists) {
+            const members = Array.isArray(coupleSnap.data().members)
+              ? coupleSnap.data().members
+              : [];
 
-      unsubscribePartner = q.onSnapshot(
-        function(snapshot) {
-          const myMeals = [];
-          const partnerMeals = [];
-          const unknownMeals = [];
+            const partnerId =
+              members.find(uid => uid !== myUid) || null;
 
-          snapshot.forEach(function(item) {
-            const data = item.data() || {};
-            const meal = {
-              id: item.id,
-              ...data
-            };
-
-            if (data.userId === myUid) {
-              myMeals.push(meal);
-            } else if (data.userId === partnerUid) {
-              partnerMeals.push(meal);
-            } else {
-              unknownMeals.push(meal);
+            if (partnerId) {
+              currentProfile.partnerId = partnerId;
             }
-          });
-
-          console.log(
-            "🌸 V17 COUPLE FOOD:",
-            "you:", myMeals.length,
-            "| partner:", partnerMeals.length,
-            "| unknown:", unknownMeals.length,
-            "| total:", snapshot.size
-          );
-
-          currentProfile.partnerId = partnerUid;
-          window.__partnerMeals = partnerMeals.slice();
+          }
 
           /*
-           * This is the only collection used to calculate the partner
-           * card. Every Firestore snapshot redraws it immediately.
+           * Filter by the resolved partner UID when it is available.
            */
-          renderPartnerMeals(partnerMeals);
+          const resolvedPartnerId = currentProfile.partnerId || null;
 
-          const connectedBar =
-            document.getElementById("connectedBar");
-          const coupleCard =
-            document.getElementById("coupleCard");
-          const status =
-            document.getElementById("partnerStatus");
+          const filteredPartnerMeals = resolvedPartnerId
+            ? partnerMeals.filter(m => m.userId === resolvedPartnerId)
+            : partnerMeals;
 
-          if (connectedBar) connectedBar.style.display = "block";
-          if (coupleCard) coupleCard.style.display = "none";
+          window.__partnerMeals = filteredPartnerMeals.slice();
 
-          if (status) {
-            status.textContent =
-              currentProfile.partnerName
-                ? "❤️ Connected to " + currentProfile.partnerName
-                : "❤️ Connected";
-          }
-        },
-        function(error) {
-          console.error("🌸 V17 partner food listener:", error);
-          showToast(
-            "Could not sync partner food: " +
-            (error.code || error.message)
+          console.log(
+            "🌸 V18 COUPLE FOOD:",
+            "you:", myMeals.length,
+            "| partner:", filteredPartnerMeals.length,
+            "| unknown:", unknownMeals.length,
+            "| total:", snapshot.size,
+            "| couple:", coupleId
           );
-        }
-      );
-    })
-    .catch(function(error) {
-      console.error("🌸 V17 couple read error:", error);
+
+          renderPartnerMeals(filteredPartnerMeals);
+        })
+        .catch(function(error) {
+          console.error("V18 couple member lookup:", error);
+
+          window.__partnerMeals = partnerMeals.slice();
+
+          console.log(
+            "🌸 V18 COUPLE FOOD fallback:",
+            "you:", myMeals.length,
+            "| partner:", partnerMeals.length,
+            "| total:", snapshot.size,
+            "| couple:", coupleId
+          );
+
+          renderPartnerMeals(partnerMeals);
+        });
+    },
+    function(error) {
+      console.error("V18 partner realtime listener:", error);
       showToast(
-        "Could not load couple: " +
+        "Could not sync partner food: " +
         (error.code || error.message)
       );
-    });
+    }
+  );
 }
 
 
@@ -2218,7 +2316,8 @@ Do NOT return markdown.
    Couple connection
 ------------------------- */
 window.connectPartner = async function() {
-  const code = document.getElementById("coupleCode").value.trim().toUpperCase();
+  const code =
+    document.getElementById("coupleCode").value.trim().toUpperCase();
 
   if (!code) {
     showToast("Enter your partner's code.");
@@ -2239,10 +2338,19 @@ window.connectPartner = async function() {
       return;
     }
 
-    const couple = coupleSnap.data();
-    const members = Array.isArray(couple.members) ? couple.members : [];
+    const couple = coupleSnap.data() || {};
+    const members = Array.isArray(couple.members)
+      ? couple.members.filter(Boolean)
+      : [];
 
     if (members.includes(currentUser.uid)) {
+      /*
+       * Already a member: still normalize this pair.
+       */
+      await normalizeCurrentCouple();
+      await migrateOwnFoodLogsToCouple();
+      await resolvePartnerFromCouple();
+      listenToCoupleChanges();
       showToast("Already connected ❤️");
       return;
     }
@@ -2253,22 +2361,42 @@ window.connectPartner = async function() {
     }
 
     const partnerId = members[0];
+
     if (!partnerId) {
       showToast("This couple is not ready yet.");
       return;
     }
 
+    /*
+     * Add this account to the legacy couple document so both
+     * existing accounts remain members of the original pair.
+     */
     await coupleRef.update({
       members: [...members, currentUser.uid]
     });
 
-    await db.collection("users").doc(currentUser.uid).update({
-      coupleId: code,
-      partnerId: partnerId
-    });
+    /*
+     * Set this user's legacy partner reference.
+     */
+    await db.collection("users")
+      .doc(currentUser.uid)
+      .update({
+        coupleId: code,
+        partnerId: partnerId
+      });
 
     currentProfile.coupleId = code;
     currentProfile.partnerId = partnerId;
+
+    /*
+     * IMPORTANT: converge this account onto the canonical pair ID.
+     */
+    const canonicalId =
+      await normalizeCurrentCouple();
+
+    if (canonicalId) {
+      currentProfile.coupleId = canonicalId;
+    }
 
     await migrateOwnFoodLogsToCouple();
 
@@ -2276,10 +2404,15 @@ window.connectPartner = async function() {
 
     await resolvePartnerFromCouple();
     listenToCoupleChanges();
+
     showToast("❤️ Partner connected!");
+
   } catch (error) {
-    console.error("Connect partner error:", error);
-    showToast("Firebase error: " + (error.code || error.message));
+    console.error("V18 connect partner error:", error);
+    showToast(
+      "Firebase error: " +
+      (error.code || error.message)
+    );
   }
 };
 
@@ -2340,7 +2473,7 @@ function loadReminders() {
     reminders.dinner || "19:30";
 }
 
-console.log("🌸 YApp V17 COMPLETE PARTNER SYNC loaded successfully.");
+console.log("🌸 YApp V18 CANONICAL COUPLE loaded successfully.");
 </script>
 
 
