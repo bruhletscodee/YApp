@@ -1508,6 +1508,10 @@ async function resolvePartnerFromCouple() {
     document.getElementById("partnerTrackerLabel").textContent =
       currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
 
+    /*
+     * Start the real-time food listener only after the partner UID
+     * has been resolved.
+     */
     listenToPartnerMeals();
   } catch (error) {
     console.error("Resolve partner error:", error);
@@ -1542,54 +1546,56 @@ function listenToPartnerMeals() {
   }
 
   if (!currentProfile || !currentProfile.coupleId || !currentProfile.partnerId) {
+    console.warn("Partner listener waiting for coupleId/partnerId.");
     return;
   }
 
+  /*
+   * Listen ONLY to the partner's food inside this couple.
+   * Using both fields makes the listener precise and avoids
+   * receiving your own food and filtering it afterwards.
+   */
   const q = db.collection("foodLogs")
-    .where("coupleId", "==", currentProfile.coupleId);
+    .where("coupleId", "==", currentProfile.coupleId)
+    .where("userId", "==", currentProfile.partnerId);
 
   unsubscribePartner = q.onSnapshot(
-    async function(snapshot) {
+    function(snapshot) {
       const meals = [];
 
       snapshot.forEach(function(item) {
-        const data = item.data();
-        if (data.userId === currentProfile.partnerId) {
-          meals.push({ id:item.id, ...data });
-        }
+        meals.push({
+          id: item.id,
+          ...item.data()
+        });
       });
 
+      console.log(
+        "🌸 Partner realtime update:",
+        meals.length,
+        "meal(s)",
+        "couple:",
+        currentProfile.coupleId,
+        "partner:",
+        currentProfile.partnerId
+      );
+
       window.__partnerMeals = meals.slice();
+
+      /* Update the calorie card immediately on EVERY snapshot. */
       renderPartnerMeals(meals);
-      renderPartnerLogList(meals);
 
-      try {
-        const partnerSnap = await db.collection("users")
-          .doc(currentProfile.partnerId)
-          .get();
-
-        if (partnerSnap.exists) {
-          const partner = partnerSnap.data();
-          const goal = Number(partner.dailyGoal) || 1800;
-          const partnerName = partner.name || "your partner";
-
-          currentProfile.partnerName = partnerName;
-          document.getElementById("connectedName").textContent = partnerName;
-          document.getElementById("connectedBar").style.display = "block";
-          document.getElementById("coupleCard").style.display = "none";
-          document.getElementById("partnerStatus").textContent = "❤️ Connected to " + partnerName;
-          document.getElementById("partnerTrackerLabel").textContent =
-            currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
-          document.getElementById("partnerGoal").textContent = "/ " + goal + " kcal";
-          renderPartnerGoal = goal;
-        }
-      } catch (error) {
-        console.error("Partner profile error:", error);
+      /* If the partner-log window is open, update it immediately too. */
+      if (
+        document.getElementById("partnerLogsModal") &&
+        document.getElementById("partnerLogsModal").classList.contains("show")
+      ) {
+        renderPartnerLogList(meals);
       }
     },
     function(error) {
-      console.error("Partner listener:", error);
-      showToast("Could not sync partner data.");
+      console.error("Partner realtime listener:", error);
+      showToast("Could not sync partner food: " + (error.code || error.message));
     }
   );
 }
@@ -1883,10 +1889,36 @@ Do NOT return markdown.
       throw new Error("No food detected.");
     }
 
+    /*
+     * Always obtain the latest coupleId immediately before saving.
+     * This prevents a food entry from being created without coupleId
+     * if the profile was updated on another tab/device.
+     */
+    let activeCoupleId = currentProfile.coupleId || null;
+
+    if (!activeCoupleId) {
+      try {
+        const ownProfileSnap = await db.collection("users")
+          .doc(currentUser.uid)
+          .get();
+
+        if (ownProfileSnap.exists) {
+          const ownProfile = ownProfileSnap.data() || {};
+          activeCoupleId = ownProfile.coupleId || null;
+
+          if (activeCoupleId) {
+            currentProfile.coupleId = activeCoupleId;
+          }
+        }
+      } catch (profileError) {
+        console.error("Could not refresh coupleId before saving food:", profileError);
+      }
+    }
+
     for (const food of data.foods) {
       await db.collection("foodLogs").add({
         userId: currentUser.uid,
-        coupleId: currentProfile.coupleId || null,
+        coupleId: activeCoupleId,
         food: `${food.quantity} ${food.unit} ${food.name}`,
         calories: Number(food.calories) || 0,
         protein: Number(food.protein_g) || 0,
