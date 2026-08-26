@@ -1,4 +1,4 @@
-<!-- YAPP VERSION: V40 - INSTALLABLE PWA -->
+<!-- YAPP VERSION: V41 - IOS SAFE GEMINI JSON -->
 <!-- YAPP VERSION: V33 - PETALS DETACH FROM CHERRY BLOSSOM BRANCH -->
 <!-- YAPP VERSION: V32 - CHERRY BRANCH CANOPY + PETAL FALL -->
 <!-- YAPP VERSION: V31 - INDIVIDUAL REMINDER CONTROLS -->
@@ -2668,12 +2668,12 @@ async function initAI() {
       aiModule.getGenerativeModel(ai, {
         model: "gemini-3.5-flash-lite",
         generationConfig: {
-          maxOutputTokens: 800,
+          maxOutputTokens: 1600,
           responseMimeType: "application/json"
         }
       });
 
-    console.log("🌸 YApp Gemini ready.");
+    console.log("🌸 YApp Gemini ready - V41 iOS-safe JSON.");
   } catch (error) {
     console.warn("YApp AI unavailable; login will continue to work.", error);
     model = null;
@@ -2682,6 +2682,74 @@ async function initAI() {
 
 initAI();
 
+
+function parseGeminiJSON(rawText) {
+  if (typeof rawText !== "string") {
+    throw new Error("AI returned no text.");
+  }
+
+  let raw = rawText.replace(/^\uFEFF/, "").trim();
+  raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+  // Keep only the outer JSON object.
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+  if (first >= 0 && last > first) raw = raw.slice(first, last + 1);
+
+  try {
+    return JSON.parse(raw);
+  } catch (firstError) {
+    // Safari can report this as: "JSON Parse error: Unterminated string".
+    // Gemini occasionally emits a literal newline/control character inside
+    // a JSON string. Repair only characters that are illegal inside strings.
+    let repaired = "";
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+
+      if (escaped) {
+        repaired += ch;
+        escaped = false;
+        continue;
+      }
+
+      if (ch === "\\" && inString) {
+        repaired += ch;
+        escaped = true;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = !inString;
+        repaired += ch;
+        continue;
+      }
+
+      if (inString) {
+        if (ch === "\n") repaired += "\\n";
+        else if (ch === "\r") repaired += "\\r";
+        else if (ch === "\t") repaired += "\\t";
+        else if (ch.charCodeAt(0) < 32) repaired += " ";
+        else repaired += ch;
+      } else {
+        repaired += ch;
+      }
+    }
+
+    // Remove trailing commas before } or ].
+    repaired = repaired.replace(/,\s*([}\]])/g, "$1");
+
+    try {
+      return JSON.parse(repaired);
+    } catch (secondError) {
+      console.error("Gemini raw response:", rawText);
+      console.error("Gemini JSON parse error:", secondError);
+      throw new Error("AI returned incomplete or invalid JSON. Please try again.");
+    }
+  }
+}
 
 async function fileToGenerativePart(file) {
   const base64 =
@@ -2926,7 +2994,7 @@ Return ONLY JSON:
   "note": "Portions and nutrition are estimates from the menu photo."
 }
 
-Be concise and return at most 10 choices.
+Return at most 10 choices. Keep every string short. Do not use newlines inside string values.
 `;
 
     const result =
@@ -2945,7 +3013,7 @@ Be concise and return at most 10 choices.
         .trim();
 
     const data =
-      JSON.parse(raw);
+      parseGeminiJSON(raw);
 
     if (!data.choices || !data.choices.length) {
       throw new Error("No menu items found.");
@@ -2969,7 +3037,7 @@ Be concise and return at most 10 choices.
         '</div>';
     }
 
-    showToast("Menu analysis failed.");
+    showToast(error && error.message ? "AI: " + error.message : "Menu analysis failed.");
   } finally {
     button.disabled = false;
     button.textContent = "📸 Analyze Menu";
@@ -3043,7 +3111,7 @@ Return ONLY JSON:
   "explanation":"Typical serving estimate."
 }
 
-Keep the response compact.
+Keep the response compact. Keep every string short. Do not use newlines inside string values.
 `;
 
     const result = await model.generateContent(prompt);
@@ -3051,7 +3119,7 @@ Keep the response compact.
 
     raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 
-    const data = JSON.parse(raw);
+    const data = parseGeminiJSON(raw);
 
     if (!data.foods || !data.foods.length) {
       throw new Error("No food detected.");
@@ -3148,7 +3216,7 @@ Keep the response compact.
         )}
       </div>
     `;
-    showToast("AI analysis failed.");
+    showToast(error && error.message ? "AI: " + error.message : "AI analysis failed.");
   } finally {
     button.disabled = false;
     button.textContent = "✨ Analyze & Add";
