@@ -513,13 +513,13 @@ Welcome
 
 <button
   class="btn"
-  id="loginBtn">
+  onclick="login()">
 LOG IN
 </button>
 
 <button
   class="btn secondary"
-  id="signupBtn">
+  onclick="signup()">
 CREATE ACCOUNT
 </button>
 
@@ -567,7 +567,7 @@ Tell YApp a little about yourself.
 
 <button
   class="btn"
-  id="saveProfileBtn">
+  onclick="saveProfile()">
 CONTINUE
 </button>
 
@@ -601,7 +601,7 @@ Eat better, together.
 
 <button
   class="logout"
-  id="logoutBtn">
+  onclick="logout()">
 Log out
 </button>
 
@@ -920,7 +920,7 @@ Tell YApp naturally what you ate.
 <button
   id="aiButton"
   class="btn"
-  id="analyzeFoodBtn">
+  onclick="analyzeFood()">
 
 ✨ Analyze & Add
 
@@ -973,7 +973,7 @@ She can enter it on her account.
 
 <button
   class="btn"
-  id="connectPartnerBtn">
+  onclick="connectPartner()">
 
 CONNECT PARTNER
 
@@ -1017,7 +1017,8 @@ You can turn yours off.
 
 <input
   id="reminderToggle"
-  type="checkbox">
+  type="checkbox"
+  onchange="toggleReminder()">
 
 <span class="slider"></span>
 
@@ -1043,7 +1044,7 @@ You can turn yours off.
 
 <button
   class="btn"
-  id="saveRemindersBtn">
+  onclick="saveReminders()">
 
 SAVE REMINDERS
 
@@ -1099,1333 +1100,488 @@ Her reminders stay enabled.
 FIREBASE
 ================================================= -->
 
-<script type="module">
 
+<script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore-compat.js"></script>
 
-/* ================================
-IMPORTS
-================================ */
-
-import {
-  initializeApp
-}
-from
-"https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-
-
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged
-}
-from
-"https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-
-
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  addDoc,
-  query,
-  where,
-  onSnapshot,
-  updateDoc,
-  getDocs
-}
-from
-"https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-
-
-/* ================================
-FIREBASE CONFIG
-================================ */
+<script>
+/* =========================================================
+   YAPP - STABLE NON-MODULE FIREBASE VERSION
+   Auth + Firestore use Firebase Compat so inline buttons
+   cannot fail with "login is not defined".
+   Gemini is loaded separately after the app starts.
+========================================================= */
 
 const firebaseConfig = {
-
-  apiKey:
-  "AIzaSyAvvh1IaOgOMtMTaucHMZTULgCHG1M5pPo",
-
-  authDomain:
-  "yapp-cf99c.firebaseapp.com",
-
-  projectId:
-  "yapp-cf99c",
-
-  storageBucket:
-  "yapp-cf99c.firebasestorage.app",
-
-  messagingSenderId:
-  "105958345468",
-
-  appId:
-  "1:105958345468:web:233a59903c8e8bcc52e579",
-
-  measurementId:
-  "G-G2CMP8MH23"
-
+  apiKey: "AIzaSyAvvh1IaOgOMtMTaucHMZTULgCHG1M5pPo",
+  authDomain: "yapp-cf99c.firebaseapp.com",
+  projectId: "yapp-cf99c",
+  storageBucket: "yapp-cf99c.firebasestorage.app",
+  messagingSenderId: "105958345468",
+  appId: "1:105958345468:web:233a59903c8e8bcc52e579",
+  measurementId: "G-G2CMP8MH23"
 };
 
-
-/* ================================
-INITIALIZE FIREBASE
-================================ */
-
-const app =
-  initializeApp(
-    firebaseConfig
-  );
-
-
-const auth =
-  getAuth(app);
-
-
-const db =
-  getFirestore(app);
-
-
-/* ================================
-INITIALIZE GEMINI (OPTIONAL)
-================================ */
-
-let model = null;
-
-async function initAI(){
-
-  try{
-
-    const aiModule = await import(
-      "https://www.gstatic.com/firebasejs/12.7.0/firebase-ai.js"
-    );
-
-    const ai = aiModule.getAI(
-      app,
-      {
-        backend: new aiModule.GoogleAIBackend()
-      }
-    );
-
-    model = aiModule.getGenerativeModel(
-      ai,
-      { model: "gemini-3.6-flash" }
-    );
-
-    console.log("YApp Gemini initialized.");
-
-  }catch(error){
-
-    console.warn(
-      "YApp AI unavailable. Login and Firestore will still work.",
-      error
-    );
-
-  }
-}
-
-// Start AI separately so an AI failure can never stop login.
-initAI();
-
-
-/* ================================
-GLOBAL STATE
-================================ */
+let app = null;
+let auth = null;
+let db = null;
 
 let currentUser = null;
-
 let currentProfile = null;
-
+let model = null;
 let unsubscribeMeals = null;
-
 let unsubscribePartner = null;
-
-
-/* ================================
-HELPERS
-================================ */
-
-window.showToast =
-function(message){
-
-  const toast =
-    document.getElementById(
-      "toast"
-    );
-
-  toast.textContent =
-    message;
-
-  toast.classList.add(
-    "show"
-  );
-
-  setTimeout(
-    function(){
-
-      toast.classList.remove(
-        "show"
-      );
-
-    },
-    2500
-  );
-
-};
-
-
-window.today =
-function(){
-
-  return new Date()
-    .toISOString()
-    .slice(0,10);
-
-};
-
-
-window.escapeHTML =
-function(text){
-
-  return String(text)
-    .replace(
-      /[&<>"']/g,
-      function(c){
-
-        return {
-
-          "&":"&amp;",
-          "<":"&lt;",
-          ">":"&gt;",
-          '"':"&quot;",
-          "'":"&#039;"
-
-        }[c];
-
-      }
-    );
-
-};
-
-
-/* ================================
-PAGE SWITCH
-================================ */
-
-function showPage(page){
-
-  document
-    .getElementById("authPage")
-    .classList.toggle(
-      "hidden",
-      page !== "auth"
-    );
-
-  document
-    .getElementById("profilePage")
-    .classList.toggle(
-      "hidden",
-      page !== "profile"
-    );
-
-  document
-    .getElementById("mainPage")
-    .classList.toggle(
-      "hidden",
-      page !== "main"
-    );
-
-}
-
-
-/* ================================
-AUTH STATE
-================================ */
-
-onAuthStateChanged(
-  auth,
-  async function(user){
-
-    currentUser =
-      user;
-
-
-    if(!user){
-
-      showPage("auth");
-
-      return;
-
-    }
-
-
-    try{
-
-      const profileSnap =
-        await getDoc(
-          doc(
-            db,
-            "users",
-            user.uid
-          )
-        );
-
-
-      if(
-        !profileSnap.exists()
-      ){
-
-        showPage(
-          "profile"
-        );
-
-      }else{
-
-        currentProfile =
-          profileSnap.data();
-
-        startApp();
-
-      }
-
-    }catch(error){
-
-      console.error(
-        error
-      );
-
-      showToast(
-        "Could not load your profile."
-      );
-
-    }
-
-  }
-);
-
-
-/* ================================
-SIGN UP
-================================ */
-
-window.signup =
-async function(){
-
-  const email =
-    document
-      .getElementById("email")
-      .value
-      .trim();
-
-
-  const password =
-    document
-      .getElementById("password")
-      .value;
-
-
-  if(
-    !email ||
-    password.length < 6
-  ){
-
-    showToast(
-      "Enter an email and password of at least 6 characters."
-    );
-
-    return;
-
-  }
-
-
-  try{
-
-    await
-      createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-
-    showToast(
-      "Account created 🌸"
-    );
-
-
-  }catch(error){
-
-    console.error(
-      error
-    );
-
-    showToast(
-      error.message
-    );
-
-  }
-
-};
-
-
-/* ================================
-LOGIN
-================================ */
-
-window.login =
-async function(){
-
-  const email =
-    document
-      .getElementById("email")
-      .value
-      .trim();
-
-
-  const password =
-    document
-      .getElementById("password")
-      .value;
-
-
-  if(
-    !email ||
-    !password
-  ){
-
-    showToast(
-      "Enter your email and password."
-    );
-
-    return;
-
-  }
-
-
-  try{
-
-    await
-      signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-
-  }catch(error){
-
-    console.error(
-      error
-    );
-
-    showToast(
-      error.message
-    );
-
-  }
-
-};
-
-
-/* ================================
-CREATE PROFILE
-================================ */
-
-window.saveProfile =
-async function(){
-
-  const name =
-    document
-      .getElementById(
-        "profileName"
-      )
-      .value
-      .trim();
-
-
-  const goal =
-    Number(
-      document
-        .getElementById(
-          "profileGoal"
-        )
-        .value
-    );
-
-
-  if(
-    !name ||
-    !goal
-  ){
-
-    showToast(
-      "Enter your name and calorie goal."
-    );
-
-    return;
-
-  }
-
-
-  const code =
-    Math.random()
-      .toString(36)
-      .substring(2,8)
-      .toUpperCase();
-
-
-  const coupleId =code;
-
-
-  currentProfile = {
-
-    name:name,
-
-    dailyGoal:goal,
-
-    partnerId:null,
-
-    coupleId:coupleId,
-
-    coupleCode:code,
-
-    reminders:{
-
-      enabled:true,
-
-      breakfast:"08:00",
-
-      lunch:"13:00",
-
-      dinner:"19:30"
-
-    }
-
-  };
-
-
-  await setDoc(
-    doc(
-      db,
-      "users",
-      currentUser.uid
-    ),
-    currentProfile
-  );
-
-
-  await setDoc(
-    doc(
-      db,
-      "couples",
-      coupleId
-    ),
-    {
-
-      code:code,
-
-      members:[
-        currentUser.uid
-      ],
-
-      createdBy:
-        currentUser.uid,
-
-      createdAt:
-        new Date().toISOString()
-
-    }
-  );
-
-
-  showToast(
-    "Profile created 🌸"
-  );
-
-
-  startApp();
-
-};
-
-
-/* ================================
-START APP
-================================ */
-
-function startApp(){
-
-  showPage("main");
-
-
-  document
-    .getElementById(
-      "welcome"
-    )
-    .textContent =
-      currentProfile.name +
-      " ❤️";
-
-
-  document
-    .getElementById(
-      "myGoal"
-    )
-    .textContent =
-      "/ " +
-      currentProfile.dailyGoal +
-      " kcal";
-
-
-  document
-    .getElementById(
-      "myCode"
-    )
-    .textContent =
-      currentProfile.coupleCode;
-
-
-  document
-    .getElementById(
-      "date"
-    )
-    .textContent =
-      new Date()
-        .toLocaleDateString(
-          undefined,
-          {
-            weekday:"long",
-            day:"numeric",
-            month:"long"
-          }
-        );
-
-
-  loadReminders();
-
-  listenToMyMeals();
-
-  listenToPartnerMeals();
-
-}
-
-
-/* ================================
-MY FOOD LISTENER
-================================ */
-
-function listenToMyMeals(){
-
-  if(
-    unsubscribeMeals
-  ){
-
-    unsubscribeMeals();
-
-  }
-
-
-  const q =
-    query(
-      collection(
-        db,
-        "foodLogs"
-      ),
-
-      where(
-        "userId",
-        "==",
-        currentUser.uid
-      )
-    );
-
-
-  unsubscribeMeals =
-    onSnapshot(
-      q,
-
-      function(snapshot){
-
-        const meals = [];
-
-
-        snapshot.forEach(
-          function(item){
-
-            meals.push({
-
-              id:item.id,
-
-              ...item.data()
-
-            });
-
-          }
-        );
-
-
-        renderMyMeals(
-          meals
-        );
-
-      },
-
-      function(error){
-
-        console.error(
-          "Food listener:",
-          error
-        );
-
-      }
-    );
-
-}
-
-
-/* ================================
-PARTNER LISTENER
-================================ */
-
-async function listenToPartnerMeals(){
-
-  if(
-    !currentProfile.partnerId
-  ){
-
-    document
-      .getElementById(
-        "partnerStatus"
-      )
-      .textContent =
-        "Not connected";
-
-    return;
-
-  }
-
-
-  if(
-    unsubscribePartner
-  ){
-
-    unsubscribePartner();
-
-  }
-
-
-  const q =
-    query(
-      collection(
-        db,
-        "foodLogs"
-      ),
-
-      where(
-        "userId",
-        "==",
-        currentProfile.partnerId
-      )
-    );
-
-
-  unsubscribePartner =
-    onSnapshot(
-      q,
-
-      async function(snapshot){
-
-        const meals = [];
-
-
-        snapshot.forEach(
-          function(item){
-
-            meals.push({
-
-              id:item.id,
-
-              ...item.data()
-
-            });
-
-          }
-        );
-
-
-        renderPartnerMeals(
-          meals
-        );
-
-
-        try{
-
-          const partnerSnap =
-            await getDoc(
-              doc(
-                db,
-                "users",
-                currentProfile.partnerId
-              )
-            );
-
-
-          if(
-            partnerSnap.exists()
-          ){
-
-            const partner =
-              partnerSnap.data();
-
-
-            document
-              .getElementById(
-                "partnerGoal"
-              )
-              .textContent =
-                "/ " +
-                (
-                  partner.dailyGoal ||
-                  1800
-                ) +
-                " kcal";
-
-
-            renderPartnerGoal =
-              partner.dailyGoal ||
-              1800;
-
-          }
-
-        }catch(error){
-
-          console.error(
-            error
-          );
-
-        }
-
-      },
-
-      function(error){
-
-        console.error(
-          "Partner listener:",
-          error
-        );
-
-      }
-    );
-
-}
-
-
-/* ================================
-PARTNER GOAL
-================================ */
-
 let renderPartnerGoal = 1800;
 
+/* -------------------------
+   Firebase bootstrap
+------------------------- */
+try {
+  if (!window.firebase) {
+    throw new Error("Firebase SDK failed to load.");
+  }
 
-/* ================================
-CALCULATE NUTRIENTS
-================================ */
+  app = firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
 
-function calculateTotals(
-  meals
-){
+  console.log("🌸 YApp Firebase ready.");
+} catch (error) {
+  console.error("Firebase startup failed:", error);
+  window.showToast("Firebase could not load. Refresh and try again.");
+}
 
-  const totals = {
+/* -------------------------
+   UI helpers
+------------------------- */
+window.showToast = function(message) {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 2500);
+};
 
-    calories:0,
+window.today = function() {
+  return new Date().toISOString().slice(0,10);
+};
 
-    protein:0,
+window.escapeHTML = function(text) {
+  return String(text).replace(/[&<>"']/g, function(c) {
+    return {
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      '"':"&quot;",
+      "'":"&#039;"
+    }[c];
+  });
+};
 
-    carbs:0,
+function showPage(page) {
+  document.getElementById("authPage").classList.toggle("hidden", page !== "auth");
+  document.getElementById("profilePage").classList.toggle("hidden", page !== "profile");
+  document.getElementById("mainPage").classList.toggle("hidden", page !== "main");
+}
 
-    fat:0,
+/* -------------------------
+   Auth
+------------------------- */
+window.signup = async function() {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
 
-    fiber:0,
+  if (!email || password.length < 6) {
+    showToast("Enter an email and password of at least 6 characters.");
+    return;
+  }
 
-    sugar:0,
+  if (!auth) {
+    showToast("Firebase is not ready. Refresh the page.");
+    return;
+  }
 
-    sodium:0,
+  try {
+    await auth.createUserWithEmailAndPassword(email, password);
+    showToast("Account created 🌸");
+  } catch (error) {
+    console.error("Signup error:", error);
+    showToast(error.message || "Signup failed.");
+  }
+};
 
-    calcium:0,
+window.login = async function() {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
 
-    iron:0,
+  if (!email || !password) {
+    showToast("Enter your email and password.");
+    return;
+  }
 
-    potassium:0,
+  if (!auth) {
+    showToast("Firebase is not ready. Refresh the page.");
+    return;
+  }
 
-    vitaminC:0,
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+  } catch (error) {
+    console.error("Login error:", error);
+    showToast(error.message || "Login failed.");
+  }
+};
 
-    vitaminA:0,
+window.logout = async function() {
+  try {
+    if (unsubscribeMeals) unsubscribeMeals();
+    if (unsubscribePartner) unsubscribePartner();
+    if (auth) await auth.signOut();
+  } catch (error) {
+    console.error("Logout error:", error);
+  }
+};
 
-    vitaminD:0
+/* -------------------------
+   Profile
+------------------------- */
+window.saveProfile = async function() {
+  const name = document.getElementById("profileName").value.trim();
+  const goal = Number(document.getElementById("profileGoal").value);
 
+  if (!name || !goal) {
+    showToast("Enter your name and calorie goal.");
+    return;
+  }
+
+  if (!currentUser || !db) {
+    showToast("Firebase is not ready.");
+    return;
+  }
+
+  const code = Math.random().toString(36).substring(2,8).toUpperCase();
+  const coupleId = code;
+
+  currentProfile = {
+    name,
+    dailyGoal: goal,
+    partnerId: null,
+    coupleId,
+    coupleCode: code,
+    reminders: {
+      enabled: true,
+      breakfast: "08:00",
+      lunch: "13:00",
+      dinner: "19:30"
+    }
   };
 
+  try {
+    await db.collection("users").doc(currentUser.uid).set(currentProfile);
 
-  meals.forEach(
-    function(m){
+    await db.collection("couples").doc(coupleId).set({
+      code,
+      members: [currentUser.uid],
+      createdBy: currentUser.uid,
+      createdAt: new Date().toISOString()
+    });
 
-      totals.calories +=
-        Number(m.calories) || 0;
+    showToast("Profile created 🌸");
+    startApp();
+  } catch (error) {
+    console.error("Profile error:", error);
+    showToast(error.message || "Could not create profile.");
+  }
+};
 
-      totals.protein +=
-        Number(m.protein) || 0;
+/* -------------------------
+   Auth state
+------------------------- */
+if (auth) {
+  auth.onAuthStateChanged(async function(user) {
+    currentUser = user;
 
-      totals.carbs +=
-        Number(m.carbs) || 0;
+    if (!user) {
+      showPage("auth");
+      return;
+    }
 
-      totals.fat +=
-        Number(m.fat) || 0;
+    try {
+      const snap = await db.collection("users").doc(user.uid).get();
 
-      totals.fiber +=
-        Number(m.fiber) || 0;
+      if (!snap.exists) {
+        showPage("profile");
+      } else {
+        currentProfile = snap.data();
+        startApp();
+      }
+    } catch (error) {
+      console.error("Profile load error:", error);
+      showToast(error.message || "Could not load your profile.");
+    }
+  });
+}
 
-      totals.sugar +=
-        Number(m.sugar) || 0;
+/* -------------------------
+   App startup
+------------------------- */
+function startApp() {
+  showPage("main");
 
-      totals.sodium +=
-        Number(m.sodium) || 0;
+  document.getElementById("welcome").textContent =
+    (currentProfile.name || "You") + " ❤️";
 
-      totals.calcium +=
-        Number(m.calcium) || 0;
+  document.getElementById("myGoal").textContent =
+    "/ " + (currentProfile.dailyGoal || 2300) + " kcal";
 
-      totals.iron +=
-        Number(m.iron) || 0;
+  document.getElementById("myCode").textContent =
+    currentProfile.coupleCode || "------";
 
-      totals.potassium +=
-        Number(m.potassium) || 0;
+  document.getElementById("date").textContent =
+    new Date().toLocaleDateString(undefined, {
+      weekday:"long",
+      day:"numeric",
+      month:"long"
+    });
 
-      totals.vitaminC +=
-        Number(m.vitaminC) || 0;
+  loadReminders();
+  listenToMyMeals();
+  listenToPartnerMeals();
+}
 
-      totals.vitaminA +=
-        Number(m.vitaminA) || 0;
+/* -------------------------
+   Food listeners
+------------------------- */
+function listenToMyMeals() {
+  if (unsubscribeMeals) unsubscribeMeals();
 
-      totals.vitaminD +=
-        Number(m.vitaminD) || 0;
+  const q = db.collection("foodLogs")
+    .where("userId", "==", currentUser.uid);
 
+  unsubscribeMeals = q.onSnapshot(
+    function(snapshot) {
+      const meals = [];
+      snapshot.forEach(function(item) {
+        meals.push({ id:item.id, ...item.data() });
+      });
+      renderMyMeals(meals);
+    },
+    function(error) {
+      console.error("Food listener:", error);
+      showToast("Could not load your food.");
     }
   );
+}
 
+function listenToPartnerMeals() {
+  if (!currentProfile || !currentProfile.partnerId) {
+    document.getElementById("partnerStatus").textContent = "Not connected";
+    return;
+  }
+
+  if (unsubscribePartner) unsubscribePartner();
+
+  const q = db.collection("foodLogs")
+    .where("userId", "==", currentProfile.partnerId);
+
+  unsubscribePartner = q.onSnapshot(
+    async function(snapshot) {
+      const meals = [];
+      snapshot.forEach(function(item) {
+        meals.push({ id:item.id, ...item.data() });
+      });
+
+      renderPartnerMeals(meals);
+
+      try {
+        const partnerSnap =
+          await db.collection("users")
+            .doc(currentProfile.partnerId)
+            .get();
+
+        if (partnerSnap.exists) {
+          const partner = partnerSnap.data();
+          const goal = partner.dailyGoal || 1800;
+
+          document.getElementById("partnerGoal").textContent =
+            "/ " + goal + " kcal";
+
+          renderPartnerGoal = goal;
+        }
+      } catch (error) {
+        console.error("Partner profile error:", error);
+      }
+    },
+    function(error) {
+      console.error("Partner listener:", error);
+    }
+  );
+}
+
+/* -------------------------
+   Nutrition
+------------------------- */
+function calculateTotals(meals) {
+  const totals = {
+    calories:0, protein:0, carbs:0, fat:0,
+    fiber:0, sugar:0, sodium:0, calcium:0,
+    iron:0, potassium:0, vitaminC:0,
+    vitaminA:0, vitaminD:0
+  };
+
+  meals.forEach(function(m) {
+    totals.calories += Number(m.calories) || 0;
+    totals.protein += Number(m.protein) || 0;
+    totals.carbs += Number(m.carbs) || 0;
+    totals.fat += Number(m.fat) || 0;
+    totals.fiber += Number(m.fiber) || 0;
+    totals.sugar += Number(m.sugar) || 0;
+    totals.sodium += Number(m.sodium) || 0;
+    totals.calcium += Number(m.calcium) || 0;
+    totals.iron += Number(m.iron) || 0;
+    totals.potassium += Number(m.potassium) || 0;
+    totals.vitaminC += Number(m.vitaminC) || 0;
+    totals.vitaminA += Number(m.vitaminA) || 0;
+    totals.vitaminD += Number(m.vitaminD) || 0;
+  });
 
   return totals;
-
 }
 
+function renderMyMeals(meals) {
+  const todayMeals = meals.filter(m => m.date === today());
+  const totals = calculateTotals(todayMeals);
+  renderNutrition(totals);
 
-/* ================================
-RENDER MY MEALS
-================================ */
+  const list = document.getElementById("mealList");
 
-function renderMyMeals(
-  meals
-){
-
-  const todayMeals =
-    meals.filter(
-      function(m){
-
-        return m.date === today();
-
-      }
-    );
-
-
-  const totals =
-    calculateTotals(
-      todayMeals
-    );
-
-
-  renderNutrition(
-    totals
-  );
-
-
-  const list =
-    document.getElementById(
-      "mealList"
-    );
-
-
-  if(
-    todayMeals.length === 0
-  ){
-
-    list.innerHTML =
-      `
-      <div class="empty">
-        No meals logged yet 🌸
-      </div>
-      `;
-
+  if (!todayMeals.length) {
+    list.innerHTML = '<div class="empty">No meals logged yet 🌸</div>';
     return;
-
   }
 
-
-  todayMeals.sort(
-    function(a,b){
-
-      return String(
-        b.createdAt || ""
-      ).localeCompare(
-        String(
-          a.createdAt || ""
-        )
-      );
-
-    }
+  todayMeals.sort((a,b) =>
+    String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
   );
 
-
-  list.innerHTML =
-    todayMeals
-      .map(
-        function(m){
-
-          return `
-
-          <div class="meal">
-
-            <div>
-
-              <div class="meal-name">
-                ${escapeHTML(
-                  m.food
-                )}
-              </div>
-
-              <div class="meal-meta">
-
-                ${m.time || ""}
-
-                · Protein
-                ${Number(
-                  m.protein || 0
-                ).toFixed(1)}g
-
-                · Fiber
-                ${Number(
-                  m.fiber || 0
-                ).toFixed(1)}g
-
-              </div>
-
-            </div>
-
-            <div class="meal-cal">
-
-              ${Math.round(
-                m.calories || 0
-              )}
-
-              kcal
-
-            </div>
-
+  list.innerHTML = todayMeals.map(function(m) {
+    return `
+      <div class="meal">
+        <div>
+          <div class="meal-name">${escapeHTML(m.food)}</div>
+          <div class="meal-meta">
+            ${m.time || ""}
+            · Protein ${Number(m.protein || 0).toFixed(1)}g
+            · Fiber ${Number(m.fiber || 0).toFixed(1)}g
           </div>
-
-          `;
-
-        }
-      )
-      .join("");
-
+        </div>
+        <div class="meal-cal">
+          ${Math.round(m.calories || 0)} kcal
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
+function renderNutrition(t) {
+  document.getElementById("myCalories").textContent =
+    Math.round(t.calories);
 
-/* ================================
-RENDER NUTRITION
-================================ */
+  document.getElementById("myProgress").style.width =
+    Math.min(100, (t.calories / (currentProfile.dailyGoal || 2300)) * 100) + "%";
 
-function renderNutrition(
-  t
-){
-
-  document
-    .getElementById(
-      "myCalories"
-    )
-    .textContent =
-      Math.round(
-        t.calories
-      );
-
-
-  document
-    .getElementById(
-      "myProgress"
-    )
-    .style.width =
-      Math.min(
-        100,
-        (
-          t.calories /
-          currentProfile.dailyGoal
-        ) * 100
-      ) +
-      "%";
-
-
-  document
-    .getElementById(
-      "nProtein"
-    )
-    .textContent =
-      t.protein.toFixed(1) +
-      " g";
-
-
-  document
-    .getElementById(
-      "nCarbs"
-    )
-    .textContent =
-      t.carbs.toFixed(1) +
-      " g";
-
-
-  document
-    .getElementById(
-      "nFat"
-    )
-    .textContent =
-      t.fat.toFixed(1) +
-      " g";
-
-
-  document
-    .getElementById(
-      "nFiber"
-    )
-    .textContent =
-      t.fiber.toFixed(1) +
-      " g";
-
-
-  document
-    .getElementById(
-      "nSugar"
-    )
-    .textContent =
-      t.sugar.toFixed(1) +
-      " g";
-
-
-  document
-    .getElementById(
-      "nSodium"
-    )
-    .textContent =
-      Math.round(
-        t.sodium
-      ) +
-      " mg";
-
-
-  document
-    .getElementById(
-      "nCalcium"
-    )
-    .textContent =
-      Math.round(
-        t.calcium
-      ) +
-      " mg";
-
-
-  document
-    .getElementById(
-      "nIron"
-    )
-    .textContent =
-      t.iron.toFixed(1) +
-      " mg";
-
-
-  document
-    .getElementById(
-      "nPotassium"
-    )
-    .textContent =
-      Math.round(
-        t.potassium
-      ) +
-      " mg";
-
-
-  document
-    .getElementById(
-      "nVitaminC"
-    )
-    .textContent =
-      t.vitaminC.toFixed(1) +
-      " mg";
-
-
-  document
-    .getElementById(
-      "nVitaminA"
-    )
-    .textContent =
-      Math.round(
-        t.vitaminA
-      ) +
-      " µg";
-
-
-  document
-    .getElementById(
-      "nVitaminD"
-    )
-    .textContent =
-      t.vitaminD.toFixed(1) +
-      " µg";
-
+  document.getElementById("nProtein").textContent = t.protein.toFixed(1) + " g";
+  document.getElementById("nCarbs").textContent = t.carbs.toFixed(1) + " g";
+  document.getElementById("nFat").textContent = t.fat.toFixed(1) + " g";
+  document.getElementById("nFiber").textContent = t.fiber.toFixed(1) + " g";
+  document.getElementById("nSugar").textContent = t.sugar.toFixed(1) + " g";
+  document.getElementById("nSodium").textContent = Math.round(t.sodium) + " mg";
+  document.getElementById("nCalcium").textContent = Math.round(t.calcium) + " mg";
+  document.getElementById("nIron").textContent = t.iron.toFixed(1) + " mg";
+  document.getElementById("nPotassium").textContent = Math.round(t.potassium) + " mg";
+  document.getElementById("nVitaminC").textContent = t.vitaminC.toFixed(1) + " mg";
+  document.getElementById("nVitaminA").textContent = Math.round(t.vitaminA) + " µg";
+  document.getElementById("nVitaminD").textContent = t.vitaminD.toFixed(1) + " µg";
 }
 
+function renderPartnerMeals(meals) {
+  const todayMeals = meals.filter(m => m.date === today());
+  const totals = calculateTotals(todayMeals);
 
-/* ================================
-PARTNER MEALS
-================================ */
+  document.getElementById("partnerCalories").textContent =
+    Math.round(totals.calories);
 
-function renderPartnerMeals(
-  meals
-){
+  document.getElementById("partnerProgress").style.width =
+    Math.min(100, (totals.calories / renderPartnerGoal) * 100) + "%";
 
-  const todayMeals =
-    meals.filter(
-      function(m){
-
-        return m.date === today();
-
-      }
-    );
-
-
-  const totals =
-    calculateTotals(
-      todayMeals
-    );
-
-
-  document
-    .getElementById(
-      "partnerCalories"
-    )
-    .textContent =
-      Math.round(
-        totals.calories
-      );
-
-
-  document
-    .getElementById(
-      "partnerProgress"
-    )
-    .style.width =
-      Math.min(
-        100,
-        (
-          totals.calories /
-          renderPartnerGoal
-        ) * 100
-      ) +
-      "%";
-
-
-  document
-    .getElementById(
-      "partnerStatus"
-    )
-    .textContent =
-      "❤️ Connected";
-
+  document.getElementById("partnerStatus").textContent =
+    "❤️ Connected";
 }
 
+/* -------------------------
+   Gemini
+------------------------- */
+async function initAI() {
+  try {
+    const aiModule =
+      await import("https://www.gstatic.com/firebasejs/12.7.0/firebase-ai.js");
 
-/* ================================
-AI FOOD ANALYSIS
-================================ */
+    // Use the modular Firebase App just for Firebase AI Logic.
+    const appModule =
+      await import("https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js");
 
-window.analyzeFood =
-async function(){
+    const modularApp =
+      appModule.initializeApp(firebaseConfig, "YAppAI");
 
-  const input =
-    document.getElementById(
-      "aiInput"
-    );
+    const ai =
+      aiModule.getAI(modularApp, {
+        backend: new aiModule.GoogleAIBackend()
+      });
 
+    model =
+      aiModule.getGenerativeModel(ai, {
+        model: "gemini-3.6-flash"
+      });
 
-  const button =
-    document.getElementById(
-      "aiButton"
-    );
+    console.log("🌸 YApp Gemini ready.");
+  } catch (error) {
+    console.warn("YApp AI unavailable; login will continue to work.", error);
+    model = null;
+  }
+}
 
+initAI();
 
-  const resultBox =
-    document.getElementById(
-      "aiResult"
-    );
+window.analyzeFood = async function() {
+  const input = document.getElementById("aiInput");
+  const button = document.getElementById("aiButton");
+  const resultBox = document.getElementById("aiResult");
+  const text = input.value.trim();
 
-
-  const text =
-    input.value.trim();
-
-
-  if(
-    !text
-  ){
-
-    showToast(
-      "Tell YApp what you ate 🌸"
-    );
-
+  if (!text) {
+    showToast("Tell YApp what you ate 🌸");
     return;
-
   }
 
-
-  if(
-    !model
-  ){
-
-    showToast(
-      "Gemini AI is not connected."
-    );
-
+  if (!model) {
+    showToast("AI is still loading or unavailable. Try again in a moment.");
     return;
-
   }
-
 
   button.disabled = true;
+  button.textContent = "🌸 Thinking...";
 
-  button.textContent =
-    "🌸 Thinking...";
-
-
-  try{
-
+  try {
     const prompt = `
-
 You are the nutrition engine for YApp.
 
 The user wrote:
-
 "${text}"
 
 Identify every food and drink.
 
 Understand:
-
 - natural language
 - quantities
 - serving sizes
@@ -2434,8 +1590,7 @@ Understand:
 - mixed dishes
 - beverages
 
-For EACH food return:
-
+For each food return:
 name
 quantity
 unit
@@ -2454,410 +1609,133 @@ vitamin_a_ug
 vitamin_d_ug
 confidence
 
-Return ONLY valid JSON.
-
-Use this exact structure:
+Return ONLY valid JSON in this shape:
 
 {
-  "foods":[
+  "foods": [
     {
-      "name":"apple",
-      "quantity":1,
-      "unit":"medium",
-      "calories":95,
-      "protein_g":0.5,
-      "carbs_g":25,
-      "fat_g":0.3,
-      "fiber_g":4.4,
-      "sugar_g":19,
-      "sodium_mg":2,
-      "calcium_mg":11,
-      "iron_mg":0.2,
-      "potassium_mg":195,
-      "vitamin_c_mg":8.4,
-      "vitamin_a_ug":6,
-      "vitamin_d_ug":0,
-      "confidence":0.95
+      "name": "apple",
+      "quantity": 1,
+      "unit": "medium",
+      "calories": 95,
+      "protein_g": 0.5,
+      "carbs_g": 25,
+      "fat_g": 0.3,
+      "fiber_g": 4.4,
+      "sugar_g": 19,
+      "sodium_mg": 2,
+      "calcium_mg": 11,
+      "iron_mg": 0.2,
+      "potassium_mg": 195,
+      "vitamin_c_mg": 8.4,
+      "vitamin_a_ug": 6,
+      "vitamin_d_ug": 0,
+      "confidence": 0.95
     }
   ],
-
-  "totalCalories":95,
-  "totalProtein":0.5,
-  "totalCarbs":25,
-  "totalFat":0.3,
-  "totalFiber":4.4,
-  "totalSugar":19,
-  "totalSodium":2,
-  "totalCalcium":11,
-  "totalIron":0.2,
-  "totalPotassium":195,
-  "totalVitaminC":8.4,
-  "totalVitaminA":6,
-  "totalVitaminD":0,
-
-  "explanation":
-  "Estimated using a typical serving size."
+  "totalCalories": 95,
+  "totalProtein": 0.5,
+  "totalCarbs": 25,
+  "totalFat": 0.3,
+  "totalFiber": 4.4,
+  "totalSugar": 19,
+  "totalSodium": 2,
+  "totalCalcium": 11,
+  "totalIron": 0.2,
+  "totalPotassium": 195,
+  "totalVitaminC": 8.4,
+  "totalVitaminA": 6,
+  "totalVitaminD": 0,
+  "explanation": "Estimated using a typical serving size."
 }
 
-Nutrition values are estimates.
-
-If the quantity is unclear,
-use a reasonable serving estimate.
-
-Lower confidence when uncertain.
-
+Nutrition values are estimates. If the quantity is unclear, use a reasonable serving estimate and lower confidence.
 Do NOT return markdown.
-
-Return ONLY JSON.
-
 `;
 
+    const result = await model.generateContent(prompt);
+    let raw = result.response.text().trim();
 
-    const result =
-      await model.generateContent(
-        prompt
-      );
+    raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 
+    const data = JSON.parse(raw);
 
-    let raw =
-      result.response
-        .text()
-        .trim();
-
-
-    raw =
-      raw
-        .replace(
-          /```json/gi,
-          ""
-        )
-        .replace(
-          /```/g,
-          ""
-        )
-        .trim();
-
-
-    const data =
-      JSON.parse(
-        raw
-      );
-
-
-    if(
-      !data.foods ||
-      data.foods.length === 0
-    ){
-
-      throw new Error(
-        "No food detected."
-      );
-
+    if (!data.foods || !data.foods.length) {
+      throw new Error("No food detected.");
     }
 
-
-    /* ========================
-       SAVE FOODS
-    ======================== */
-
-    for(
-      const food
-      of data.foods
-    ){
-
-      await addDoc(
-        collection(
-          db,
-          "foodLogs"
-        ),
-        {
-
-          userId:
-            currentUser.uid,
-
-          coupleId:
-            currentProfile.coupleId ||
-            null,
-
-          food:
-            `${food.quantity} ${food.unit} ${food.name}`,
-
-          calories:
-            Number(
-              food.calories
-            ) || 0,
-
-          protein:
-            Number(
-              food.protein_g
-            ) || 0,
-
-          carbs:
-            Number(
-              food.carbs_g
-            ) || 0,
-
-          fat:
-            Number(
-              food.fat_g
-            ) || 0,
-
-          fiber:
-            Number(
-              food.fiber_g
-            ) || 0,
-
-          sugar:
-            Number(
-              food.sugar_g
-            ) || 0,
-
-          sodium:
-            Number(
-              food.sodium_mg
-            ) || 0,
-
-          calcium:
-            Number(
-              food.calcium_mg
-            ) || 0,
-
-          iron:
-            Number(
-              food.iron_mg
-            ) || 0,
-
-          potassium:
-            Number(
-              food.potassium_mg
-            ) || 0,
-
-          vitaminC:
-            Number(
-              food.vitamin_c_mg
-            ) || 0,
-
-          vitaminA:
-            Number(
-              food.vitamin_a_ug
-            ) || 0,
-
-          vitaminD:
-            Number(
-              food.vitamin_d_ug
-            ) || 0,
-
-          confidence:
-            Number(
-              food.confidence
-            ) || 0,
-
-          date:
-            today(),
-
-          time:
-            new Date()
-              .toLocaleTimeString(
-                [],
-                {
-                  hour:"2-digit",
-                  minute:"2-digit"
-                }
-              ),
-
-          createdAt:
-            new Date()
-              .toISOString()
-
-        }
-
-      );
-
+    for (const food of data.foods) {
+      await db.collection("foodLogs").add({
+        userId: currentUser.uid,
+        coupleId: currentProfile.coupleId || null,
+        food: `${food.quantity} ${food.unit} ${food.name}`,
+        calories: Number(food.calories) || 0,
+        protein: Number(food.protein_g) || 0,
+        carbs: Number(food.carbs_g) || 0,
+        fat: Number(food.fat_g) || 0,
+        fiber: Number(food.fiber_g) || 0,
+        sugar: Number(food.sugar_g) || 0,
+        sodium: Number(food.sodium_mg) || 0,
+        calcium: Number(food.calcium_mg) || 0,
+        iron: Number(food.iron_mg) || 0,
+        potassium: Number(food.potassium_mg) || 0,
+        vitaminC: Number(food.vitamin_c_mg) || 0,
+        vitaminA: Number(food.vitamin_a_ug) || 0,
+        vitaminD: Number(food.vitamin_d_ug) || 0,
+        confidence: Number(food.confidence) || 0,
+        date: today(),
+        time: new Date().toLocaleTimeString([], {
+          hour:"2-digit",
+          minute:"2-digit"
+        }),
+        createdAt: new Date().toISOString()
+      });
     }
-
-
-    /* ========================
-       SHOW RESULT
-    ======================== */
 
     resultBox.innerHTML = `
-
       <div class="ai-result">
-
-        <b>
-          🌸 YApp understood:
-        </b>
-
-        <br><br>
-
-        ${
-          data.foods
-            .map(
-              function(food){
-
-                return `
-
-                <div class="food-item">
-
-                  <b>
-                    ${escapeHTML(
-                      food.name
-                    )}
-                  </b>
-
-                  <br>
-
-                  ${food.quantity}
-                  ${escapeHTML(
-                    food.unit
-                  )}
-
-                  ·
-
-                  ${Math.round(
-                    food.calories
-                  )}
-                  kcal
-
-                  <br>
-
-                  Protein:
-                  ${Number(
-                    food.protein_g
-                  ).toFixed(1)}g
-
-                  ·
-
-                  Fiber:
-                  ${Number(
-                    food.fiber_g
-                  ).toFixed(1)}g
-
-                  <br>
-
-                  Confidence:
-                  ${Math.round(
-                    Number(
-                      food.confidence
-                    ) * 100
-                  )}%
-
-                </div>
-
-                `;
-
-              }
-            )
-            .join("")
-        }
-
+        <b>🌸 YApp understood:</b><br><br>
+        ${data.foods.map(food => `
+          <div class="food-item">
+            <b>${escapeHTML(food.name)}</b><br>
+            ${food.quantity} ${escapeHTML(food.unit)}
+            · ${Math.round(food.calories)} kcal<br>
+            Protein: ${Number(food.protein_g).toFixed(1)}g
+            · Fiber: ${Number(food.fiber_g).toFixed(1)}g<br>
+            Confidence:
+            ${Math.round(Number(food.confidence) * 100)}%
+          </div>
+        `).join("")}
         <br>
-
-        <b>
-          Total:
-          ${Math.round(
-            data.totalCalories
-          )}
-          kcal
-        </b>
-
-        <br>
-
-        Protein:
-        ${Number(
-          data.totalProtein
-        ).toFixed(1)}g
-
-        ·
-
-        Fiber:
-        ${Number(
-          data.totalFiber
-        ).toFixed(1)}g
-
+        <b>Total: ${Math.round(data.totalCalories)} kcal</b><br>
+        Protein: ${Number(data.totalProtein).toFixed(1)}g
+        · Fiber: ${Number(data.totalFiber).toFixed(1)}g
         <br><br>
-
-        <span class="note">
-
-          ${escapeHTML(
-            data.explanation || ""
-          )}
-
-        </span>
-
+        <span class="note">${escapeHTML(data.explanation || "")}</span>
       </div>
-
     `;
-
 
     input.value = "";
-
-
-    showToast(
-      "🌸 Food saved to the cloud"
-    );
-
-
-  }catch(error){
-
-    console.error(
-      "YApp AI error:",
-      error
-    );
-
-
+    showToast("🌸 Food saved to the cloud.");
+  } catch (error) {
+    console.error("YApp AI error:", error);
     resultBox.innerHTML = `
-
       <div class="ai-result">
-
-        ⚠️
-
-        ${escapeHTML(
-          error.message
-        )}
-
-        <br><br>
-
-        <span class="note">
-
-          If this is a Firebase AI
-          error, send me the first
-          red error from F12 → Console.
-
-        </span>
-
+        ⚠️ ${escapeHTML(error.message || "AI analysis failed.")}
       </div>
-
     `;
-
-
-    showToast(
-      "AI analysis failed."
-    );
-
-
-  }finally{
-
+    showToast("AI analysis failed.");
+  } finally {
     button.disabled = false;
-
-    button.textContent =
-      "✨ Analyze & Add";
-
+    button.textContent = "✨ Analyze & Add";
   }
-
 };
 
-
-/* ================================
-COUPLE CONNECT
-================================ */
-window.connectPartner = async function(){
-
-  const code = document
-    .getElementById("coupleCode")
-    .value
-    .trim()
-    .toUpperCase();
+/* -------------------------
+   Couple connection
+------------------------- */
+window.connectPartner = async function() {
+  const code = document.getElementById("coupleCode").value.trim().toUpperCase();
 
   if (!code) {
     showToast("Enter your partner's code.");
@@ -2870,388 +1748,114 @@ window.connectPartner = async function(){
   }
 
   try {
+    const coupleRef = db.collection("couples").doc(code);
+    const coupleSnap = await coupleRef.get();
 
-    console.log("STEP 1: Code =", code);
-
-    const coupleRef = doc(
-      db,
-      "couples",
-      code
-    );
-
-    console.log("STEP 2: Reading couples/" + code);
-
-    const coupleSnap = await getDoc(
-      coupleRef
-    );
-
-    console.log(
-      "STEP 3: Read successful",
-      coupleSnap.exists()
-    );
-
-    if (!coupleSnap.exists()) {
-
-      showToast(
-        "No couple found with code " + code
-      );
-
+    if (!coupleSnap.exists) {
+      showToast("No couple found with code " + code);
       return;
     }
 
     const couple = coupleSnap.data();
-
-    console.log(
-      "STEP 4: Couple data =",
-      couple
-    );
-
-    const members = Array.isArray(
-      couple.members
-    )
-      ? couple.members
-      : [];
-
-    console.log(
-      "STEP 5: Members =",
-      members
-    );
+    const members = Array.isArray(couple.members) ? couple.members : [];
 
     if (members.includes(currentUser.uid)) {
-
-      showToast(
-        "Already connected ❤️"
-      );
-
+      showToast("Already connected ❤️");
       return;
     }
 
     if (members.length >= 2) {
-
-      showToast(
-        "This couple already has two people."
-      );
-
+      showToast("This couple already has two people.");
       return;
     }
 
     const partnerId = members[0];
+    if (!partnerId) {
+      showToast("This couple is not ready yet.");
+      return;
+    }
 
-    console.log(
-      "STEP 6: Partner UID =",
-      partnerId
-    );
+    await coupleRef.update({
+      members: [...members, currentUser.uid]
+    });
 
-    console.log(
-      "STEP 7: Updating couple..."
-    );
+    await db.collection("users").doc(currentUser.uid).update({
+      coupleId: code,
+      partnerId: partnerId
+    });
 
-    await updateDoc(
-      coupleRef,
-      {
-        members: [
-          ...members,
-          currentUser.uid
-        ]
-      }
-    );
+    currentProfile.coupleId = code;
+    currentProfile.partnerId = partnerId;
 
-    console.log(
-      "STEP 8: Couple updated"
-    );
-
-
-    console.log(
-      "STEP 9: Updating my profile..."
-    );
-
-    await updateDoc(
-      doc(
-        db,
-        "users",
-        currentUser.uid
-      ),
-      {
-        coupleId: code,
-        partnerId: partnerId
-      }
-    );
-
-    console.log(
-      "STEP 10: Profile updated"
-    );
-
-
-    currentProfile.coupleId =
-      code;
-
-    currentProfile.partnerId =
-      partnerId;
-
-
-    document
-      .getElementById(
-        "partnerStatus"
-      )
-      .textContent =
-        "❤️ Connected";
-
-
-    document
-      .getElementById(
-        "coupleCode"
-      )
-      .value = "";
-
+    document.getElementById("partnerStatus").textContent = "❤️ Connected";
+    document.getElementById("coupleCode").value = "";
 
     listenToPartnerMeals();
-
-    showToast(
-      "❤️ Partner connected!"
-    );
-
-
+    showToast("❤️ Partner connected!");
   } catch (error) {
-
-    console.error(
-      "========== YAPP CONNECT ERROR =========="
-    );
-
-    console.error(
-      error
-    );
-
-    console.error(
-      "CODE:",
-      code
-    );
-
-    console.error(
-      "USER:",
-      currentUser
-        ? currentUser.uid
-        : "NO USER"
-    );
-
-    showToast(
-      "Firebase error: " +
-      error.code
-    );
-
+    console.error("Connect partner error:", error);
+    showToast("Firebase error: " + (error.code || error.message));
   }
-
 };
 
+/* -------------------------
+   Reminders
+------------------------- */
+window.toggleReminder = async function() {
+  const enabled = document.getElementById("reminderToggle").checked;
 
-/* ================================
-REMINDERS
-================================ */
+  try {
+    await db.collection("users").doc(currentUser.uid).update({
+      "reminders.enabled": enabled
+    });
 
-window.toggleReminder =
-async function(){
+    if (!currentProfile.reminders) currentProfile.reminders = {};
+    currentProfile.reminders.enabled = enabled;
 
-  const enabled =
-    document
-      .getElementById(
-        "reminderToggle"
-      )
-      .checked;
-
-
-  await updateDoc(
-    doc(
-      db,
-      "users",
-      currentUser.uid
-    ),
-    {
-
-      "reminders.enabled":
-        enabled
-
-    }
-  );
-
-
-  if(
-    !currentProfile.reminders
-  ){
-
-    currentProfile.reminders =
-      {};
-
+    showToast(enabled ? "Reminders ON 🌸" : "Reminders OFF");
+  } catch (error) {
+    console.error("Reminder toggle error:", error);
+    showToast(error.message || "Could not change reminder.");
   }
-
-
-  currentProfile
-    .reminders
-    .enabled =
-      enabled;
-
-
-  showToast(
-    enabled
-      ? "Reminders ON 🌸"
-      : "Reminders OFF"
-  );
-
 };
 
+window.saveReminders = async function() {
+  const breakfast = document.getElementById("breakfast").value;
+  const lunch = document.getElementById("lunch").value;
+  const dinner = document.getElementById("dinner").value;
 
-window.saveReminders =
-async function(){
+  try {
+    await db.collection("users").doc(currentUser.uid).update({
+      "reminders.breakfast": breakfast,
+      "reminders.lunch": lunch,
+      "reminders.dinner": dinner
+    });
 
-  const breakfast =
-    document
-      .getElementById(
-        "breakfast"
-      )
-      .value;
-
-
-  const lunch =
-    document
-      .getElementById(
-        "lunch"
-      )
-      .value;
-
-
-  const dinner =
-    document
-      .getElementById(
-        "dinner"
-      )
-      .value;
-
-
-  await updateDoc(
-    doc(
-      db,
-      "users",
-      currentUser.uid
-    ),
-    {
-
-      "reminders.breakfast":
-        breakfast,
-
-      "reminders.lunch":
-        lunch,
-
-      "reminders.dinner":
-        dinner
-
-    }
-  );
-
-
-  showToast(
-    "Reminder times saved 🌸"
-  );
-
+    showToast("Reminder times saved 🌸");
+  } catch (error) {
+    console.error("Reminder save error:", error);
+    showToast(error.message || "Could not save reminders.");
+  }
 };
 
+function loadReminders() {
+  const reminders = currentProfile.reminders;
+  if (!reminders) return;
 
-function loadReminders(){
+  document.getElementById("reminderToggle").checked =
+    reminders.enabled !== false;
 
-  const reminders =
-    currentProfile.reminders;
+  document.getElementById("breakfast").value =
+    reminders.breakfast || "08:00";
 
+  document.getElementById("lunch").value =
+    reminders.lunch || "13:00";
 
-  if(
-    !reminders
-  ){
-
-    return;
-
-  }
-
-
-  document
-    .getElementById(
-      "reminderToggle"
-    )
-    .checked =
-      reminders.enabled !== false;
-
-
-  document
-    .getElementById(
-      "breakfast"
-    )
-    .value =
-      reminders.breakfast ||
-      "08:00";
-
-
-  document
-    .getElementById(
-      "lunch"
-    )
-    .value =
-      reminders.lunch ||
-      "13:00";
-
-
-  document
-    .getElementById(
-      "dinner"
-    )
-    .value =
-      reminders.dinner ||
-      "19:30";
-
+  document.getElementById("dinner").value =
+    reminders.dinner || "19:30";
 }
 
-
-/* ================================
-LOGOUT
-================================ */
-
-window.logout =
-async function(){
-
-  if(
-    unsubscribeMeals
-  ){
-
-    unsubscribeMeals();
-
-  }
-
-
-  if(
-    unsubscribePartner
-  ){
-
-    unsubscribePartner();
-
-  }
-
-
-  await signOut(
-    auth
-  );
-
-};
-
-
-// Bind UI buttons from the module instead of inline onclick handlers.
-// This avoids module/global-scope issues on GitHub Pages.
-document.getElementById("loginBtn")?.addEventListener("click", () => window.login());
-document.getElementById("signupBtn")?.addEventListener("click", () => window.signup());
-document.getElementById("saveProfileBtn")?.addEventListener("click", () => window.saveProfile());
-document.getElementById("analyzeFoodBtn")?.addEventListener("click", () => window.analyzeFood());
-document.getElementById("connectPartnerBtn")?.addEventListener("click", () => window.connectPartner());
-document.getElementById("reminderToggle")?.addEventListener("change", () => window.toggleReminder());
-document.getElementById("saveRemindersBtn")?.addEventListener("click", () => window.saveReminders());
-document.getElementById("logoutBtn")?.addEventListener("click", () => window.logout());
-
-console.log(
-  "🌸 YApp loaded successfully."
-);
-
+console.log("🌸 YApp loaded successfully.");
 </script>
 
 </body>
