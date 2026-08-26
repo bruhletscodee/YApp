@@ -1347,7 +1347,7 @@ function startApp() {
 
   loadReminders();
   listenToMyMeals();
-  listenToPartnerMeals();
+  resolvePartnerFromCouple();
 }
 
 /* -------------------------
@@ -1374,31 +1374,70 @@ function listenToMyMeals() {
   );
 }
 
-function listenToPartnerMeals() {
-  if (!currentProfile || !currentProfile.partnerId) {
+async function resolvePartnerFromCouple() {
+  try {
+    if (!currentProfile || !currentProfile.coupleId) {
+      document.getElementById("partnerStatus").textContent = "Not connected";
+      return;
+    }
+
+    const coupleSnap = await db.collection("couples")
+      .doc(currentProfile.coupleId)
+      .get();
+
+    if (!coupleSnap.exists) {
+      document.getElementById("partnerStatus").textContent = "Not connected";
+      return;
+    }
+
+    const couple = coupleSnap.data();
+    const members = Array.isArray(couple.members) ? couple.members : [];
+    const partnerId = members.find(function(uid) {
+      return uid !== currentUser.uid;
+    });
+
+    if (!partnerId) {
+      currentProfile.partnerId = null;
+      document.getElementById("partnerStatus").textContent = "Waiting for partner";
+      return;
+    }
+
+    currentProfile.partnerId = partnerId;
+    document.getElementById("partnerStatus").textContent = "❤️ Connected";
+    listenToPartnerMeals();
+  } catch (error) {
+    console.error("Resolve partner error:", error);
     document.getElementById("partnerStatus").textContent = "Not connected";
+  }
+}
+
+function listenToPartnerMeals() {
+  if (!currentProfile || !currentProfile.coupleId || !currentProfile.partnerId) {
     return;
   }
 
   if (unsubscribePartner) unsubscribePartner();
 
   const q = db.collection("foodLogs")
-    .where("userId", "==", currentProfile.partnerId);
+    .where("coupleId", "==", currentProfile.coupleId);
 
   unsubscribePartner = q.onSnapshot(
     async function(snapshot) {
       const meals = [];
+
       snapshot.forEach(function(item) {
-        meals.push({ id:item.id, ...item.data() });
+        const data = item.data();
+        if (data.userId === currentProfile.partnerId) {
+          meals.push({ id:item.id, ...data });
+        }
       });
 
       renderPartnerMeals(meals);
 
       try {
-        const partnerSnap =
-          await db.collection("users")
-            .doc(currentProfile.partnerId)
-            .get();
+        const partnerSnap = await db.collection("users")
+          .doc(currentProfile.partnerId)
+          .get();
 
         if (partnerSnap.exists) {
           const partner = partnerSnap.data();
@@ -1415,6 +1454,7 @@ function listenToPartnerMeals() {
     },
     function(error) {
       console.error("Partner listener:", error);
+      showToast("Could not sync partner data.");
     }
   );
 }
@@ -1790,7 +1830,7 @@ window.connectPartner = async function() {
     document.getElementById("partnerStatus").textContent = "❤️ Connected";
     document.getElementById("coupleCode").value = "";
 
-    listenToPartnerMeals();
+    await resolvePartnerFromCouple();
     showToast("❤️ Partner connected!");
   } catch (error) {
     console.error("Connect partner error:", error);
