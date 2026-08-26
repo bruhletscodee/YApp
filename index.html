@@ -1,3 +1,5 @@
+<!-- YAPP VERSION: V45 - PINK SHARED TEXT -->
+<!-- YAPP VERSION: V44 - SHARED SYNCED TEXT -->
 <!-- YAPP VERSION: V43 - REMINDER BUTTON FIX -->
 <!-- YAPP VERSION: V41 - IOS SAFE GEMINI JSON -->
 <!-- YAPP VERSION: V33 - PETALS DETACH FROM CHERRY BLOSSOM BRANCH -->
@@ -674,6 +676,52 @@ textarea:focus{
 </head>
 
 <body>
+<section id="sharedTextCard" class="card" style="
+  margin:12px auto 14px;
+  max-width:760px;
+  padding:16px;
+  border-radius:20px;
+  background:linear-gradient(135deg,#fff0f6,#ffe3ed);
+  border:1px solid #f3c4d5;
+  box-shadow:0 8px 24px rgba(200,79,125,.10);
+">
+  <div style="font-weight:750;font-size:16px;margin-bottom:6px;color:#b64b73;">
+    💌 Shared space
+  </div>
+
+  <div style="font-size:12px;color:#b06f88;margin-bottom:9px;">
+    Write something here — both partners see it instantly.
+  </div>
+
+  <textarea
+    id="sharedCoupleText"
+    placeholder="Write a note, message, reminder, or anything for your partner…"
+    rows="3"
+    maxlength="2000"
+    style="
+      width:100%;
+      box-sizing:border-box;
+      resize:vertical;
+      border:1px solid #efb7ca;
+      border-radius:15px;
+      padding:11px 12px;
+      font:inherit;
+      background:#fff7fb;
+      color:#8f3e60;
+      outline:none;
+      box-shadow:inset 0 1px 3px rgba(180,70,110,.06);
+    "
+  ></textarea>
+
+  <div id="sharedTextStatus" style="
+    font-size:11px;
+    color:#b4778d;
+    margin-top:7px;
+  ">
+    Connect with your partner to sync this space.
+  </div>
+</section>
+
 <!-- Petals are spawned around the branch and fall downward -->
 <div class="petal-fall-layer" id="petalLayer" aria-hidden="true"></div>
 
@@ -4697,6 +4745,94 @@ window.addEventListener("load", registerYAppServiceWorker);
 
   console.log("🌸 V43 reminder button fix ready.");
 })();
+
+
+/* V44 SHARED COUPLE TEXT */
+let sharedTextUnsubscribe = null;
+let sharedTextSaveTimer = null;
+
+function getSharedCoupleId() {
+  return (currentProfile && currentProfile.coupleId) || "";
+}
+
+function setSharedTextUI(value, status) {
+  const box=document.getElementById("sharedCoupleText");
+  const state=document.getElementById("sharedTextStatus");
+  if (box && document.activeElement !== box) box.value=value || "";
+  if (state && status) state.textContent=status;
+}
+
+async function saveSharedCoupleText() {
+  const coupleId=getSharedCoupleId();
+  const box=document.getElementById("sharedCoupleText");
+  if (!coupleId || !box || !currentUser) return;
+
+  try {
+    await updateDoc(doc(db,"couples",coupleId),{
+      sharedText:box.value,
+      sharedTextUpdatedAt:new Date().toISOString(),
+      sharedTextUpdatedBy:currentUser.uid
+    });
+    setSharedTextUI(box.value,"✓ Synced with your partner");
+  } catch(error) {
+    console.error("Shared text save error:",error);
+    const state=document.getElementById("sharedTextStatus");
+    if(state) state.textContent =
+      error && error.code==="permission-denied"
+        ? "⚠️ Firebase permission denied"
+        : "⚠️ Could not sync";
+  }
+}
+
+function startSharedCoupleTextSync() {
+  if(sharedTextUnsubscribe) {
+    try { sharedTextUnsubscribe(); } catch(e) {}
+    sharedTextUnsubscribe=null;
+  }
+
+  const coupleId=getSharedCoupleId();
+
+  if(!coupleId || !currentUser) {
+    setSharedTextUI("","Connect with your partner to sync this space.");
+    return;
+  }
+
+  sharedTextUnsubscribe=onSnapshot(
+    doc(db,"couples",coupleId),
+    snap => {
+      if(!snap.exists()) return;
+      const data=snap.data() || {};
+      const value=typeof data.sharedText==="string" ? data.sharedText : "";
+      setSharedTextUI(value,"✓ Synced with your partner");
+    },
+    error => {
+      console.error("Shared text realtime error:",error);
+      const state=document.getElementById("sharedTextStatus");
+      if(state) state.textContent="⚠️ Sync unavailable";
+    }
+  );
+
+  const box=document.getElementById("sharedCoupleText");
+  if(box && !box.dataset.sharedTextBound) {
+    box.dataset.sharedTextBound="true";
+    box.addEventListener("input",()=>{
+      const state=document.getElementById("sharedTextStatus");
+      if(state) state.textContent="Saving…";
+      clearTimeout(sharedTextSaveTimer);
+      sharedTextSaveTimer=setTimeout(saveSharedCoupleText,450);
+    });
+  }
+}
+
+window.startSharedCoupleTextSync=startSharedCoupleTextSync;
+window.addEventListener("load",()=>{
+  startSharedCoupleTextSync();
+  let n=0;
+  const timer=setInterval(()=>{
+    startSharedCoupleTextSync();
+    if(++n>=20) clearInterval(timer);
+  },1000);
+});
 
 </script>
 
