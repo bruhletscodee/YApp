@@ -1367,7 +1367,7 @@ if (auth) {
 /* -------------------------
    App startup
 ------------------------- */
-function startApp() {
+async function startApp() {
   showPage("main");
 
   document.getElementById("welcome").textContent =
@@ -1392,6 +1392,7 @@ function startApp() {
     });
 
   loadReminders();
+  await migrateOwnFoodLogsToCouple();
   listenToMyMeals();
   resolvePartnerFromCouple();
   listenToCoupleChanges();
@@ -1400,6 +1401,37 @@ function startApp() {
 /* -------------------------
    Food listeners
 ------------------------- */
+
+async function migrateOwnFoodLogsToCouple() {
+  if (!currentUser || !currentProfile || !currentProfile.coupleId) return;
+
+  try {
+    const snap = await db.collection("foodLogs")
+      .where("userId", "==", currentUser.uid)
+      .get();
+
+    const docs = snap.docs.filter(d => {
+      const data = d.data();
+      return !data.coupleId;
+    });
+
+    if (!docs.length) return;
+
+    // Firestore batches support up to 500 writes.
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = db.batch();
+      docs.slice(i, i + 450).forEach(d => {
+        batch.update(d.ref, { coupleId: currentProfile.coupleId });
+      });
+      await batch.commit();
+    }
+
+    console.log("🌸 Migrated", docs.length, "food logs to couple", currentProfile.coupleId);
+  } catch (error) {
+    console.error("Food couple migration:", error);
+  }
+}
+
 function listenToMyMeals() {
   if (unsubscribeMeals) unsubscribeMeals();
 
@@ -1527,7 +1559,9 @@ function listenToPartnerMeals() {
         }
       });
 
+      window.__partnerMeals = meals.slice();
       renderPartnerMeals(meals);
+      renderPartnerLogList(meals);
 
       try {
         const partnerSnap = await db.collection("users")
@@ -1971,6 +2005,8 @@ window.connectPartner = async function() {
 
     currentProfile.coupleId = code;
     currentProfile.partnerId = partnerId;
+
+    await migrateOwnFoodLogsToCouple();
 
     document.getElementById("coupleCode").value = "";
 
