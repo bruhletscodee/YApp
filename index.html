@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V52 - GF BREAKFAST DEFAULT 20:00 + RULES GUIDE -->
 <!-- YAPP VERSION: V51 - SETTINGS CLOSE + PARTNER FOOD SYNC FIX -->
 <!-- YAPP VERSION: V50 - SHARED TEXT COUPLE RESOLUTION FIX -->
 <!-- YAPP VERSION: V49 - MENU AI JSON ROBUST FIX -->
@@ -1314,7 +1315,7 @@ COUPLE
           <div class="settings-help" id="breakfastPermissionText">Loading...</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <input id="settingsBreakfast" type="time" value="08:00" style="width:120px">
+          <input id="settingsBreakfast" type="time" value="20:00" style="width:120px">
           <label class="toggle">
             <input id="settingsBreakfastToggle" type="checkbox" checked onchange="toggleMealReminder('breakfast')">
             <span class="slider"></span>
@@ -1634,7 +1635,7 @@ window.saveProfile = async function() {
     coupleCode: code,
     reminders: {
       enabled: true,
-      breakfast: "08:00",
+      breakfast: "20:00",
       lunch: "13:00",
       dinner: "19:30"
     }
@@ -3850,7 +3851,7 @@ function getReminderState() {
           ? girlfriend.breakfastEnabled
           : true,
       time:
-        girlfriend.breakfast || "08:00"
+        girlfriend.breakfast || "20:00"
     },
     lunch: {
       enabled:
