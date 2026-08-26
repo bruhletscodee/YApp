@@ -1169,6 +1169,7 @@ let currentProfile = null;
 let model = null;
 let unsubscribeMeals = null;
 let unsubscribePartner = null;
+let unsubscribeCouple = null;
 let renderPartnerGoal = 1800;
 
 /* -------------------------
@@ -1274,6 +1275,7 @@ window.logout = async function() {
   try {
     if (unsubscribeMeals) unsubscribeMeals();
     if (unsubscribePartner) unsubscribePartner();
+    if (unsubscribeCouple) unsubscribeCouple();
     if (auth) await auth.signOut();
   } catch (error) {
     console.error("Logout error:", error);
@@ -1392,6 +1394,7 @@ function startApp() {
   loadReminders();
   listenToMyMeals();
   resolvePartnerFromCouple();
+  listenToCoupleChanges();
 }
 
 /* -------------------------
@@ -1420,8 +1423,10 @@ function listenToMyMeals() {
 
 async function resolvePartnerFromCouple() {
   try {
-    if (!currentProfile || !currentProfile.coupleId) {
+    if (!currentProfile || !currentProfile.coupleId || !currentUser) {
       document.getElementById("partnerStatus").textContent = "Not connected";
+      document.getElementById("connectedBar").style.display = "none";
+      document.getElementById("coupleCard").style.display = "block";
       return;
     }
 
@@ -1431,36 +1436,46 @@ async function resolvePartnerFromCouple() {
 
     if (!coupleSnap.exists) {
       document.getElementById("partnerStatus").textContent = "Not connected";
+      document.getElementById("connectedBar").style.display = "none";
+      document.getElementById("coupleCard").style.display = "block";
       return;
     }
 
-    const couple = coupleSnap.data();
+    const couple = coupleSnap.data() || {};
     const members = Array.isArray(couple.members) ? couple.members : [];
-    const partnerId = members.find(function(uid) {
-      return uid !== currentUser.uid;
-    });
+    const partnerId = members.find(uid => uid !== currentUser.uid) || null;
 
     if (!partnerId) {
       currentProfile.partnerId = null;
+      currentProfile.partnerName = null;
       document.getElementById("partnerStatus").textContent = "Waiting for partner";
-      document.getElementById("coupleCard").style.display = "block";
       document.getElementById("connectedBar").style.display = "none";
+      document.getElementById("coupleCard").style.display = "block";
+      if (unsubscribePartner) { unsubscribePartner(); unsubscribePartner = null; }
       return;
     }
 
     currentProfile.partnerId = partnerId;
+
     const partnerSnap = await db.collection("users").doc(partnerId).get();
     const partner = partnerSnap.exists ? partnerSnap.data() : {};
     const partnerName = partner.name || "your partner";
+
     currentProfile.partnerName = partnerName;
-    currentProfile.partnerRole = currentProfile.partnerRole || (currentProfile.role === "boyfriend" ? "girlfriend" : "boyfriend");
+    currentProfile.partnerRole = currentProfile.partnerRole ||
+      (currentProfile.role === "boyfriend" ? "girlfriend" : "boyfriend");
+
     document.getElementById("partnerStatus").textContent = "❤️ Connected to " + partnerName;
     document.getElementById("connectedName").textContent = partnerName;
     document.getElementById("connectedBar").style.display = "block";
     document.getElementById("coupleCard").style.display = "none";
+
     const trackerRole = document.getElementById("trackerRole");
     if (trackerRole) trackerRole.value = currentProfile.partnerRole;
-    document.getElementById("partnerTrackerLabel").textContent = currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
+
+    document.getElementById("partnerTrackerLabel").textContent =
+      currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
+
     listenToPartnerMeals();
   } catch (error) {
     console.error("Resolve partner error:", error);
@@ -1468,12 +1483,35 @@ async function resolvePartnerFromCouple() {
   }
 }
 
-function listenToPartnerMeals() {
-  if (!currentProfile || !currentProfile.coupleId || !currentProfile.partnerId) {
+function listenToCoupleChanges() {
+  if (unsubscribeCouple) unsubscribeCouple();
+
+  if (!currentProfile || !currentProfile.coupleId || !currentUser) {
     return;
   }
 
-  if (unsubscribePartner) unsubscribePartner();
+  const coupleRef = db.collection("couples").doc(currentProfile.coupleId);
+
+  unsubscribeCouple = coupleRef.onSnapshot(
+    function() {
+      // Re-resolve immediately when the other person joins.
+      resolvePartnerFromCouple();
+    },
+    function(error) {
+      console.error("Couple listener:", error);
+    }
+  );
+}
+
+function listenToPartnerMeals() {
+  if (unsubscribePartner) {
+    unsubscribePartner();
+    unsubscribePartner = null;
+  }
+
+  if (!currentProfile || !currentProfile.coupleId || !currentProfile.partnerId) {
+    return;
+  }
 
   const q = db.collection("foodLogs")
     .where("coupleId", "==", currentProfile.coupleId);
@@ -1498,17 +1536,17 @@ function listenToPartnerMeals() {
 
         if (partnerSnap.exists) {
           const partner = partnerSnap.data();
-          const goal = partner.dailyGoal || 1800;
+          const goal = Number(partner.dailyGoal) || 1800;
           const partnerName = partner.name || "your partner";
+
           currentProfile.partnerName = partnerName;
           document.getElementById("connectedName").textContent = partnerName;
           document.getElementById("connectedBar").style.display = "block";
           document.getElementById("coupleCard").style.display = "none";
-          document.getElementById("partnerTrackerLabel").textContent = currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
-
-          document.getElementById("partnerGoal").textContent =
-            "/ " + goal + " kcal";
-
+          document.getElementById("partnerStatus").textContent = "❤️ Connected to " + partnerName;
+          document.getElementById("partnerTrackerLabel").textContent =
+            currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
+          document.getElementById("partnerGoal").textContent = "/ " + goal + " kcal";
           renderPartnerGoal = goal;
         }
       } catch (error) {
@@ -1934,10 +1972,10 @@ window.connectPartner = async function() {
     currentProfile.coupleId = code;
     currentProfile.partnerId = partnerId;
 
-    document.getElementById("partnerStatus").textContent = "❤️ Connected";
     document.getElementById("coupleCode").value = "";
 
     await resolvePartnerFromCouple();
+    listenToCoupleChanges();
     showToast("❤️ Partner connected!");
   } catch (error) {
     console.error("Connect partner error:", error);
