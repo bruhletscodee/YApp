@@ -1,3 +1,7 @@
+<!-- YAPP VERSION: V49 - MENU AI JSON ROBUST FIX -->
+<!-- YAPP VERSION: V48 - REMINDERS FULLY FIXED -->
+<!-- YAPP VERSION: V47 - SHARED TEXT FIRESTORE COMPAT SYNC FIX -->
+<!-- YAPP VERSION: V46 - DEDICATED REMINDER BUTTON -->
 <!-- YAPP VERSION: V45 - PINK SHARED TEXT -->
 <!-- YAPP VERSION: V44 - SHARED SYNCED TEXT -->
 <!-- YAPP VERSION: V43 - REMINDER BUTTON FIX -->
@@ -863,6 +867,7 @@ Eat better, together.
 
 <div style="display:flex;gap:8px;align-items:center">
 <button class="settings-btn" onclick="openSettings()" aria-label="Open settings">⚙️</button>
+<button class="settings-btn" onclick="openMealReminders()" aria-label="Open reminders">⏰</button>
 <button class="logout" onclick="logout()">Log out</button>
 </div>
 
@@ -1294,7 +1299,7 @@ COUPLE
         </select>
       </div>
     </div>
-    <div class="settings-section">
+    <div id="mealReminderSection" class="settings-section">
       <h2>⏰ Meal reminders</h2>
 
       <div class="settings-help" id="reminderRoleHelp" style="margin-bottom:10px">
@@ -1847,6 +1852,10 @@ async function startApp() {
    */
   listenToPartnerMeals();
   listenToCoupleChanges();
+
+  if (typeof startSharedTextSync === "function") {
+    startSharedTextSync();
+  }
 }
 
 /* -------------------------
@@ -2786,7 +2795,7 @@ async function initAI() {
       aiModule.getGenerativeModel(ai, {
         model: "gemini-3.5-flash-lite",
         generationConfig: {
-          maxOutputTokens: 1600,
+          maxOutputTokens: 1200,
           responseMimeType: "application/json"
         }
       });
@@ -2806,66 +2815,210 @@ function parseGeminiJSON(rawText) {
     throw new Error("AI returned no text.");
   }
 
-  let raw = rawText.replace(/^\uFEFF/, "").trim();
-  raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  let raw =
+    rawText
+      .replace(/^\uFEFF/, "")
+      .trim();
 
-  // Keep only the outer JSON object.
-  const first = raw.indexOf("{");
-  const last = raw.lastIndexOf("}");
-  if (first >= 0 && last > first) raw = raw.slice(first, last + 1);
+  raw =
+    raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+  const first =
+    raw.indexOf("{");
+
+  const last =
+    raw.lastIndexOf("}");
+
+  if (first < 0 || last <= first) {
+    throw new Error(
+      "AI menu picker returned no complete JSON object."
+    );
+  }
+
+  raw =
+    raw.slice(
+      first,
+      last + 1
+    );
 
   try {
     return JSON.parse(raw);
+
   } catch (firstError) {
-    // Safari can report this as: "JSON Parse error: Unterminated string".
-    // Gemini occasionally emits a literal newline/control character inside
-    // a JSON string. Repair only characters that are illegal inside strings.
-    let repaired = "";
-    let inString = false;
-    let escaped = false;
+    console.warn(
+      "V49 first JSON parse failed:",
+      firstError.message
+    );
+  }
 
-    for (let i = 0; i < raw.length; i++) {
-      const ch = raw[i];
+  /*
+   * Repair literal control characters inside JSON strings,
+   * trailing commas, and unquoted property names.
+   */
+  let repaired = "";
+  let inString = false;
+  let escaped = false;
 
-      if (escaped) {
-        repaired += ch;
-        escaped = false;
-        continue;
-      }
+  for (
+    let i = 0;
+    i < raw.length;
+    i++
+  ) {
+    const ch = raw[i];
 
-      if (ch === "\\" && inString) {
-        repaired += ch;
-        escaped = true;
-        continue;
-      }
+    if (escaped) {
+      repaired += ch;
+      escaped = false;
+      continue;
+    }
 
-      if (ch === '"') {
-        inString = !inString;
-        repaired += ch;
-        continue;
-      }
+    if (ch === "\\" && inString) {
+      repaired += ch;
+      escaped = true;
+      continue;
+    }
 
-      if (inString) {
-        if (ch === "\n") repaired += "\\n";
-        else if (ch === "\r") repaired += "\\r";
-        else if (ch === "\t") repaired += "\\t";
-        else if (ch.charCodeAt(0) < 32) repaired += " ";
-        else repaired += ch;
+    if (ch === '"') {
+      repaired += ch;
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      if (ch === "\n") {
+        repaired += "\\n";
+      } else if (ch === "\r") {
+        repaired += "\\r";
+      } else if (ch === "\t") {
+        repaired += "\\t";
+      } else if (
+        ch.charCodeAt(0) < 32
+      ) {
+        repaired += " ";
       } else {
         repaired += ch;
       }
+    } else {
+      repaired += ch;
+    }
+  }
+
+  repaired =
+    repaired.replace(
+      /,\s*([}\]])/g,
+      "$1"
+    );
+
+  repaired =
+    repaired.replace(
+      /([{,]\s*)([A-Za-z_$][A-Za-z0-9_$-]*)\s*:/g,
+      '$1"$2":'
+    );
+
+  repaired =
+    repaired.replace(
+      /([{,]\s*)'([^']+)'\s*:/g,
+      '$1"$2":'
+    );
+
+  try {
+    return JSON.parse(repaired);
+
+  } catch (secondError) {
+    console.error(
+      "Gemini raw response:",
+      rawText
+    );
+
+    console.error(
+      "Gemini repaired JSON:",
+      repaired
+    );
+
+    /*
+     * Recover only complete choice objects from a truncated menu
+     * response. Never invent a partial menu item.
+     */
+    const recovered = [];
+
+    const choicesKey =
+      repaired.indexOf('"choices"');
+
+    if (choicesKey >= 0) {
+      const arrayStart =
+        repaired.indexOf(
+          "[",
+          choicesKey
+        );
+
+      if (arrayStart >= 0) {
+        let depth = 0;
+        let objectStart = -1;
+
+        for (
+          let i = arrayStart + 1;
+          i < repaired.length;
+          i++
+        ) {
+          const ch = repaired[i];
+
+          if (ch === "{") {
+            if (depth === 0) {
+              objectStart = i;
+            }
+            depth++;
+          }
+
+          if (ch === "}") {
+            depth--;
+
+            if (
+              depth === 0 &&
+              objectStart >= 0
+            ) {
+              const objectText =
+                repaired.slice(
+                  objectStart,
+                  i + 1
+                );
+
+              try {
+                const choice =
+                  JSON.parse(objectText);
+
+                if (
+                  choice &&
+                  typeof choice.name === "string" &&
+                  Number.isFinite(
+                    Number(choice.calories)
+                  )
+                ) {
+                  recovered.push(choice);
+                }
+              } catch (ignore) {}
+
+              objectStart = -1;
+            }
+          }
+        }
+      }
     }
 
-    // Remove trailing commas before } or ].
-    repaired = repaired.replace(/,\s*([}\]])/g, "$1");
-
-    try {
-      return JSON.parse(repaired);
-    } catch (secondError) {
-      console.error("Gemini raw response:", rawText);
-      console.error("Gemini JSON parse error:", secondError);
-      throw new Error("AI returned incomplete or invalid JSON. Please try again.");
+    if (recovered.length) {
+      return {
+        choices:
+          recovered.slice(0, 10),
+        note:
+          "The AI response ended early, so YApp recovered the complete menu choices."
+      };
     }
+
+    throw new Error(
+      "AI menu picker returned incomplete or invalid JSON."
+    );
   }
 }
 
@@ -3079,7 +3232,7 @@ Vitamin D: ${snapshot.remaining.vitaminD.toFixed(1)} µg
 
 Find menu items that are actually visible in the image.
 
-Rank exactly the best 10 available choices from 1 to 10.
+Rank the best available choices from 1 to 10. Use fewer than 10 if fewer are clearly visible.
 Favor options that fit the remaining calories and help fill nutrient gaps.
 Penalize choices that exceed the remaining calorie budget or are very high in sodium/sugar/fat when better choices exist.
 You may recommend a reasonable smaller/larger portion if useful.
@@ -3097,22 +3250,19 @@ Return ONLY JSON:
       "carbs_g": 50,
       "fat_g": 12,
       "fiber_g": 8,
-      "sugar_g": 6,
-      "sodium_mg": 700,
-      "calcium_mg": 120,
-      "iron_mg": 3,
-      "potassium_mg": 600,
-      "vitamin_c_mg": 30,
-      "vitamin_a_ug": 250,
-      "vitamin_d_ug": 1,
       "calories_left_after": 950,
-      "reason": "Fits the calorie budget and improves the day's protein and fiber balance."
+      "reason": "Fits calories and helps your nutrient balance."
     }
   ],
   "note": "Portions and nutrition are estimates from the menu photo."
 }
 
-Return at most 10 choices. Keep every string short. Do not use newlines inside string values.
+Return ONLY one valid JSON object.
+Use double quotes around every property name.
+Do not use markdown fences.
+Keep every string on one line.
+Keep each reason under 100 characters.
+Use at most 10 choices.
 `;
 
     const result =
@@ -3396,6 +3546,7 @@ window.connectPartner = async function() {
 
       if (input) input.value = "";
       showToast("Already connected ❤️");
+    if (typeof startSharedTextSync === "function") startSharedTextSync();
       return;
     }
 
@@ -3449,6 +3600,7 @@ window.connectPartner = async function() {
     listenToCoupleChanges();
 
     showToast("❤️ Partner connected!");
+    if (typeof startSharedTextSync === "function") startSharedTextSync();
 
   } catch (error) {
     console.error("V24 connect partner error:", error);
@@ -3668,6 +3820,44 @@ function currentUserCanControlMeal(meal) {
 
   return role === "boyfriend";
 }
+
+window.requestReminderPermission = async function() {
+  try {
+    if (!("Notification" in window)) {
+      showToast(
+        "Notifications are not supported by this browser."
+      );
+      renderReminderControls();
+      return;
+    }
+
+    const permission =
+      await Notification.requestPermission();
+
+    if (permission === "granted") {
+      showToast("🔔 Notifications enabled.");
+      startReminderEngine();
+    } else if (permission === "denied") {
+      showToast(
+        "🔕 Notifications are blocked. Enable them in browser/site settings."
+      );
+    } else {
+      showToast("Notification permission was not granted.");
+    }
+
+    renderReminderControls();
+
+  } catch (error) {
+    console.error(
+      "Reminder notification permission error:",
+      error
+    );
+
+    showToast(
+      "Could not enable notifications."
+    );
+  }
+};
 
 function renderReminderControls() {
   const state = getReminderState();
@@ -3958,35 +4148,28 @@ function getEffectiveReminderSchedule() {
   const state =
     getReminderState();
 
-  const role =
-    getCurrentUserRoleFromTracker();
-
   /*
-   * Each person's UI gets the same shared schedule,
-   * but controls differ by role.
+   * Each meal has its own time and enabled state.
    *
-   * Girlfriend can switch breakfast OFF, but lunch/dinner
-   * remain effective ON because she cannot toggle them.
+   * Girlfriend:
+   *   breakfast switch is hers.
+   *   lunch/dinner remain controlled by the boyfriend.
    *
-   * Boyfriend can switch any meal independently.
+   * Boyfriend:
+   *   can independently control all three.
    */
   return {
     breakfast: {
       time: state.breakfast.time,
-      enabled:
-        role === "girlfriend"
-          ? state.breakfast.enabled !== false
-          : state.breakfast.enabled !== false
+      enabled: state.breakfast.enabled !== false
     },
     lunch: {
       time: state.lunch.time,
-      enabled:
-        state.lunch.enabled !== false
+      enabled: state.lunch.enabled !== false
     },
     dinner: {
       time: state.dinner.time,
-      enabled:
-        state.dinner.enabled !== false
+      enabled: state.dinner.enabled !== false
     }
   };
 }
@@ -4139,8 +4322,6 @@ function checkMealReminders() {
   const schedule =
     getEffectiveReminderSchedule();
 
-  if (!schedule.enabled) return;
-
   const now =
     new Date();
 
@@ -4166,8 +4347,17 @@ function checkMealReminders() {
 
   meals.forEach(function(item) {
     const type = item[0];
-    const time = item[1];
-    const key = type + "@" + time;
+    const meal = item[1];
+
+    if (!meal || meal.enabled === false) {
+      return;
+    }
+
+    const time =
+      meal.time || "";
+
+    const key =
+      type + "@" + time;
 
     if (
       time === currentTime &&
@@ -4175,7 +4365,11 @@ function checkMealReminders() {
     ) {
       fireState[key] = true;
       saveReminderFireState(fireState);
-      fireMealReminder(type, time);
+
+      fireMealReminder(
+        type,
+        time
+      );
     }
   });
 }
@@ -4675,164 +4869,304 @@ window.addEventListener("load", registerYAppServiceWorker);
    V43 REMINDER BUTTON FIX
 ========================================================= */
 (function initReminderButtonFix() {
-  function openReminderUI() {
-    const ids = [
-      "reminderSettings",
-      "reminderPanel",
-      "settingsReminder",
-      "reminderModal",
-      "mealReminderPanel"
-    ];
+  window.openMealReminders = function() {
+    const modal = document.getElementById("settingsModal");
 
-    for (const id of ids) {
-      const el = document.getElementById(id);
-      if (el) {
-        el.hidden = false;
-        el.style.display = "";
-        el.classList.add("open", "active", "show");
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-
-        if (el.tagName === "DIALOG") {
-          try {
-            if (!el.open) el.showModal();
-          } catch (e) {}
-        }
-        return true;
-      }
+    if (!modal) {
+      showToast("Settings are not available.");
+      return;
     }
 
-    /* Reminder controls may be inside Settings. */
-    const settings =
-      document.getElementById("settingsPage") ||
-      document.getElementById("settingsSection") ||
-      document.getElementById("settingsModal");
+    modal.classList.add("show");
+    modal.style.display = "flex";
 
-    if (settings) {
-      settings.hidden = false;
-      settings.style.display = "";
-      settings.classList.add("open", "active", "show");
-      settings.scrollIntoView({ behavior: "smooth", block: "start" });
-      return true;
+    const section =
+      document.getElementById("mealReminderSection");
+
+    if (section) {
+      setTimeout(function() {
+        section.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }, 80);
     }
 
-    return false;
-  }
-
-  document.addEventListener("click", function(event) {
-    const button = event.target.closest(
-      "button, a, [role='button'], .setting-item, .settings-item"
-    );
-
-    if (!button) return;
-
-    const label = (
-      button.getAttribute("aria-label") ||
-      button.getAttribute("title") ||
-      button.textContent ||
-      ""
-    ).trim().toLowerCase();
-
-    if (label.includes("reminder") || label.includes("meal reminder")) {
-      if (openReminderUI()) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+    if (typeof loadSettingsReminderFields === "function") {
+      setTimeout(loadSettingsReminderFields, 50);
     }
-  }, true);
+  };
 
-  window.openReminderSettings = openReminderUI;
-  window.openMealReminders = openReminderUI;
+  window.openReminderSettings =
+    window.openMealReminders;
 
-  console.log("🌸 V43 reminder button fix ready.");
-})();
+  console.log(
+    "🌸 V46 reminder button ready."
+  );
+})();;
 
 
-/* V44 SHARED COUPLE TEXT */
+/* =========================================================
+   V47 SHARED COUPLE TEXT - COMPAT FIRESTORE FIX
+   Uses the SAME Firebase compat Firestore instance as YApp.
+========================================================= */
 let sharedTextUnsubscribe = null;
 let sharedTextSaveTimer = null;
+let sharedTextLastLocalValue = "";
 
 function getSharedCoupleId() {
-  return (currentProfile && currentProfile.coupleId) || "";
+  return (
+    currentProfile &&
+    currentProfile.coupleId
+  ) || "";
 }
 
-function setSharedTextUI(value, status) {
-  const box=document.getElementById("sharedCoupleText");
-  const state=document.getElementById("sharedTextStatus");
-  if (box && document.activeElement !== box) box.value=value || "";
-  if (state && status) state.textContent=status;
-}
+function renderSharedText(value, status) {
+  const box =
+    document.getElementById("sharedCoupleText");
 
-async function saveSharedCoupleText() {
-  const coupleId=getSharedCoupleId();
-  const box=document.getElementById("sharedCoupleText");
-  if (!coupleId || !box || !currentUser) return;
+  const state =
+    document.getElementById("sharedTextStatus");
 
-  try {
-    await updateDoc(doc(db,"couples",coupleId),{
-      sharedText:box.value,
-      sharedTextUpdatedAt:new Date().toISOString(),
-      sharedTextUpdatedBy:currentUser.uid
-    });
-    setSharedTextUI(box.value,"✓ Synced with your partner");
-  } catch(error) {
-    console.error("Shared text save error:",error);
-    const state=document.getElementById("sharedTextStatus");
-    if(state) state.textContent =
-      error && error.code==="permission-denied"
-        ? "⚠️ Firebase permission denied"
-        : "⚠️ Could not sync";
+  if (box && document.activeElement !== box) {
+    box.value =
+      typeof value === "string"
+        ? value
+        : "";
+  }
+
+  if (state && status) {
+    state.textContent = status;
   }
 }
 
-function startSharedCoupleTextSync() {
-  if(sharedTextUnsubscribe) {
-    try { sharedTextUnsubscribe(); } catch(e) {}
-    sharedTextUnsubscribe=null;
+function stopSharedTextSync() {
+  if (sharedTextUnsubscribe) {
+    try {
+      sharedTextUnsubscribe();
+    } catch (error) {
+      console.warn(
+        "Shared text unsubscribe:",
+        error
+      );
+    }
+
+    sharedTextUnsubscribe = null;
   }
+}
 
-  const coupleId=getSharedCoupleId();
+function startSharedTextSync() {
+  stopSharedTextSync();
 
-  if(!coupleId || !currentUser) {
-    setSharedTextUI("","Connect with your partner to sync this space.");
+  const box =
+    document.getElementById("sharedCoupleText");
+
+  if (!box) {
+    console.warn(
+      "V47 shared text box not found."
+    );
     return;
   }
 
-  sharedTextUnsubscribe=onSnapshot(
-    doc(db,"couples",coupleId),
-    snap => {
-      if(!snap.exists()) return;
-      const data=snap.data() || {};
-      const value=typeof data.sharedText==="string" ? data.sharedText : "";
-      setSharedTextUI(value,"✓ Synced with your partner");
-    },
-    error => {
-      console.error("Shared text realtime error:",error);
-      const state=document.getElementById("sharedTextStatus");
-      if(state) state.textContent="⚠️ Sync unavailable";
-    }
-  );
+  const coupleId =
+    getSharedCoupleId();
 
-  const box=document.getElementById("sharedCoupleText");
-  if(box && !box.dataset.sharedTextBound) {
-    box.dataset.sharedTextBound="true";
-    box.addEventListener("input",()=>{
-      const state=document.getElementById("sharedTextStatus");
-      if(state) state.textContent="Saving…";
-      clearTimeout(sharedTextSaveTimer);
-      sharedTextSaveTimer=setTimeout(saveSharedCoupleText,450);
-    });
+  if (!currentUser || !db || !coupleId) {
+    renderSharedText(
+      "",
+      "🔗 Connect with your partner to sync this space."
+    );
+    return;
   }
+
+  const coupleRef =
+    db.collection("couples")
+      .doc(coupleId);
+
+  sharedTextUnsubscribe =
+    coupleRef.onSnapshot(
+      function(snapshot) {
+        if (!snapshot.exists) {
+          renderSharedText(
+            "",
+            "⚠️ Couple record not found."
+          );
+          return;
+        }
+
+        const data =
+          snapshot.data() || {};
+
+        const value =
+          typeof data.sharedText === "string"
+            ? data.sharedText
+            : "";
+
+        /*
+         * Only replace the input when the user is NOT actively
+         * typing. This prevents their local text from jumping around.
+         */
+        if (
+          document.activeElement !== box
+        ) {
+          box.value = value;
+        }
+
+        sharedTextLastLocalValue =
+          value;
+
+        const state =
+          document.getElementById(
+            "sharedTextStatus"
+          );
+
+        if (state) {
+          state.textContent =
+            "✓ Synced with your partner";
+        }
+      },
+      function(error) {
+        console.error(
+          "V47 shared text realtime error:",
+          error
+        );
+
+        const state =
+          document.getElementById(
+            "sharedTextStatus"
+          );
+
+        if (state) {
+          state.textContent =
+            error &&
+            error.code === "permission-denied"
+              ? "⚠️ Firebase permission denied"
+              : "⚠️ Shared text sync failed";
+        }
+      }
+    );
+
+  if (!box.dataset.sharedTextBound) {
+    box.dataset.sharedTextBound = "true";
+
+    box.addEventListener(
+      "input",
+      function() {
+        clearTimeout(
+          sharedTextSaveTimer
+        );
+
+        const state =
+          document.getElementById(
+            "sharedTextStatus"
+          );
+
+        if (state) {
+          state.textContent =
+            "Saving…";
+        }
+
+        const text =
+          box.value;
+
+        /*
+         * Debounce writes so each keystroke doesn't produce a Firestore
+         * write. The final text is saved after 400ms of inactivity.
+         */
+        sharedTextSaveTimer =
+          setTimeout(
+            async function() {
+              const activeCoupleId =
+                getSharedCoupleId();
+
+              if (
+                !currentUser ||
+                !db ||
+                !activeCoupleId
+              ) {
+                if (state) {
+                  state.textContent =
+                    "🔗 Connect with your partner first.";
+                }
+                return;
+              }
+
+              try {
+                await db
+                  .collection("couples")
+                  .doc(activeCoupleId)
+                  .update({
+                    sharedText: text,
+                    sharedTextUpdatedAt:
+                      new Date().toISOString(),
+                    sharedTextUpdatedBy:
+                      currentUser.uid
+                  });
+
+                sharedTextLastLocalValue =
+                  text;
+
+                if (state) {
+                  state.textContent =
+                    "✓ Synced with your partner";
+                }
+              } catch (error) {
+                console.error(
+                  "V47 shared text save error:",
+                  error
+                );
+
+                if (state) {
+                  state.textContent =
+                    error &&
+                    error.code === "permission-denied"
+                      ? "⚠️ Firebase permission denied"
+                      : "⚠️ Could not save shared text";
+                }
+              }
+            },
+            400
+          );
+      }
+    );
+  }
+
+  console.log(
+    "🌸 V47 shared text sync started:",
+    coupleId
+  );
 }
 
-window.startSharedCoupleTextSync=startSharedCoupleTextSync;
-window.addEventListener("load",()=>{
-  startSharedCoupleTextSync();
-  let n=0;
-  const timer=setInterval(()=>{
-    startSharedCoupleTextSync();
-    if(++n>=20) clearInterval(timer);
-  },1000);
-});
+window.startSharedTextSync =
+  startSharedTextSync;
+
+window.addEventListener(
+  "load",
+  function() {
+    startSharedTextSync();
+
+    let attempts = 0;
+
+    const timer =
+      setInterval(
+        function() {
+          startSharedTextSync();
+          attempts++;
+
+          if (attempts >= 20) {
+            clearInterval(timer);
+          }
+        },
+        1000
+      );
+  }
+);
+
+/*
+ * Restart syncing immediately after a partner connection.
+ */
+const oldResolvePartner =
+  window.resolvePartnerFromCouple;
 
 </script>
 
