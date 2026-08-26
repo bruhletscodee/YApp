@@ -1,3 +1,5 @@
+<!-- YAPP VERSION: V26 SAFE SETTINGS - NULL-SAFE STARTUP -->
+<!-- YAPP VERSION: V25 STARTUP FIX - SETTINGS ELEMENT GUARDS -->
 <!-- YAPP VERSION: V24 CONNECT CODE FIX -->
 <!-- YAPP VERSION: V23 - GIRLFRIEND ONLY REMINDER TOGGLE -->
 <!-- YAPP VERSION: V22 ROLE-BASED BREAKFAST REMINDER + FAST FLASH-LITE AI -->
@@ -1250,9 +1252,13 @@ window.escapeHTML = function(text) {
 };
 
 function showPage(page) {
-  document.getElementById("authPage").classList.toggle("hidden", page !== "auth");
-  document.getElementById("profilePage").classList.toggle("hidden", page !== "profile");
-  document.getElementById("mainPage").classList.toggle("hidden", page !== "main");
+  const authPage = document.getElementById("authPage");
+  const profilePage = document.getElementById("profilePage");
+  const mainPage = document.getElementById("mainPage");
+
+  if (authPage) authPage.classList.toggle("hidden", page !== "auth");
+  if (profilePage) profilePage.classList.toggle("hidden", page !== "profile");
+  if (mainPage) mainPage.classList.toggle("hidden", page !== "main");
 }
 
 /* -------------------------
@@ -1434,33 +1440,72 @@ async function refreshDisplayedCoupleCode() {
 async function startApp() {
   showPage("main");
 
-  document.getElementById("welcome").textContent =
-    (currentProfile.name || "You") + " ❤️";
-
-  document.getElementById("myGoal").textContent =
-    "/ " + (currentProfile.dailyGoal || 2300) + " kcal";
-
-  document.getElementById("myCode").textContent =
-    currentProfile.coupleCode || "------";
-
-  const trackerRole = document.getElementById("trackerRole");
-  if (trackerRole) {
-    trackerRole.value = currentProfile.partnerRole || (currentProfile.role === "boyfriend" ? "girlfriend" : "boyfriend");
+  const welcome = document.getElementById("welcome");
+  if (welcome) {
+    welcome.textContent =
+      (currentProfile.name || "You") + " ❤️";
   }
 
-  document.getElementById("date").textContent =
-    new Date().toLocaleDateString(undefined, {
-      weekday:"long",
-      day:"numeric",
-      month:"long"
-    });
+  const myGoal = document.getElementById("myGoal");
+  if (myGoal) {
+    myGoal.textContent =
+      "/ " + (currentProfile.dailyGoal || 2300) + " kcal";
+  }
 
-  loadReminders();
+  const myCode = document.getElementById("myCode");
+  if (myCode) {
+    myCode.textContent =
+      currentProfile.coupleCode || "------";
+  }
+
+  const settingsCode =
+    document.getElementById("settingsMyCode");
+
+  if (settingsCode) {
+    settingsCode.textContent =
+      currentProfile.coupleCode || "------";
+  }
+
+  const trackerRole =
+    document.getElementById("trackerRole");
+
+  if (trackerRole) {
+    trackerRole.value =
+      currentProfile.partnerRole ||
+      (currentProfile.role === "boyfriend"
+        ? "girlfriend"
+        : "boyfriend");
+  }
+
+  const settingsTrackerRole =
+    document.getElementById("settingsTrackerRole");
+
+  if (settingsTrackerRole) {
+    settingsTrackerRole.value =
+      currentProfile.partnerRole ||
+      (currentProfile.role === "boyfriend"
+        ? "girlfriend"
+        : "boyfriend");
+  }
+
+  const dateEl =
+    document.getElementById("date");
+
+  if (dateEl) {
+    dateEl.textContent =
+      new Date().toLocaleDateString(undefined, {
+        weekday: "long",
+        day: "numeric",
+        month: "long"
+      });
+  }
+
+  /* Settings-only reminder/effect UI. */
+  loadSettingsReminderFields();
   loadSettingsEffects();
 
   /*
-   * V18: normalize both sides onto ONE canonical couple ID before
-   * starting food listeners.
+   * Normalize before starting realtime food listeners.
    */
   await normalizeCurrentCouple();
   await refreshDisplayedCoupleCode();
@@ -1469,20 +1514,24 @@ async function startApp() {
   listenToMyMeals();
 
   /*
-   * V20: explicitly resolve the partner and then ALWAYS start
-   * the partner listener. This removes ambiguity from the startup
-   * sequence on the second phone.
+   * Partner resolution can fail because of Firestore rules; it must
+   * never crash startup.
    */
-  await resolvePartnerFromCouple();
+  try {
+    await resolvePartnerFromCouple();
+  } catch (error) {
+    console.warn("V26 partner startup skipped:", error);
+  }
 
   console.log(
-    "🌸 V20 STARTING PARTNER LISTENER",
-    "| couple:",
-    currentProfile && currentProfile.coupleId,
-    "| partner:",
-    currentProfile && currentProfile.partnerId
+    "🌸 V26 PARTNER START:",
+    "couple =", currentProfile && currentProfile.coupleId,
+    "| partner =", currentProfile && currentProfile.partnerId
   );
 
+  /*
+   * Always call the realtime listener. It has its own guards.
+   */
   listenToPartnerMeals();
   listenToCoupleChanges();
 }
@@ -1708,33 +1757,52 @@ function listenToMyMeals() {
 async function resolvePartnerFromCouple() {
   try {
     if (!currentProfile || !currentProfile.coupleId || !currentUser) {
-      document.getElementById("partnerStatus").textContent = "Not connected";
-      document.getElementById("connectedBar").style.display = "none";
-      document.getElementById("coupleCard").style.display = "block";
+      const status = document.getElementById("partnerStatus");
+      const connected = document.getElementById("connectedBar");
+      const coupleCard = document.getElementById("coupleCard");
+
+      if (status) status.textContent = "Not connected";
+      if (connected) connected.style.display = "none";
+      if (coupleCard) coupleCard.style.display = "block";
       return;
     }
 
-    const coupleSnap = await db.collection("couples")
-      .doc(currentProfile.coupleId)
-      .get();
+    const coupleSnap =
+      await db.collection("couples")
+        .doc(currentProfile.coupleId)
+        .get();
 
     if (!coupleSnap.exists) {
-      document.getElementById("partnerStatus").textContent = "Not connected";
-      document.getElementById("connectedBar").style.display = "none";
-      document.getElementById("coupleCard").style.display = "block";
+      const status = document.getElementById("partnerStatus");
+      const connected = document.getElementById("connectedBar");
+      const coupleCard = document.getElementById("coupleCard");
+
+      if (status) status.textContent = "Not connected";
+      if (connected) connected.style.display = "none";
+      if (coupleCard) coupleCard.style.display = "block";
       return;
     }
 
     const couple = coupleSnap.data() || {};
-    const members = Array.isArray(couple.members) ? couple.members : [];
-    const partnerId = members.find(uid => uid !== currentUser.uid) || null;
+    const members = Array.isArray(couple.members)
+      ? couple.members.filter(Boolean)
+      : [];
+
+    const partnerId =
+      members.find(uid => uid !== currentUser.uid) || null;
 
     if (!partnerId) {
       currentProfile.partnerId = null;
       currentProfile.partnerName = null;
-      document.getElementById("partnerStatus").textContent = "Waiting for partner";
-      document.getElementById("connectedBar").style.display = "none";
-      document.getElementById("coupleCard").style.display = "block";
+
+      const status = document.getElementById("partnerStatus");
+      const connected = document.getElementById("connectedBar");
+      const coupleCard = document.getElementById("coupleCard");
+
+      if (status) status.textContent = "Waiting for partner";
+      if (connected) connected.style.display = "none";
+      if (coupleCard) coupleCard.style.display = "block";
+
       if (unsubscribePartner) {
         unsubscribePartner();
         unsubscribePartner = null;
@@ -1744,66 +1812,137 @@ async function resolvePartnerFromCouple() {
 
     currentProfile.partnerId = partnerId;
 
-    /* A profile-read failure must not make a valid couple look disconnected. */
     let partner = {};
     try {
-      const partnerSnap = await db.collection("users").doc(partnerId).get();
-      if (partnerSnap.exists) partner = partnerSnap.data() || {};
+      const partnerSnap =
+        await db.collection("users")
+          .doc(partnerId)
+          .get();
+
+      if (partnerSnap.exists) {
+        partner = partnerSnap.data() || {};
+      }
     } catch (profileError) {
-      console.warn("Partner profile read failed; using fallback:", profileError);
+      console.warn(
+        "V26 partner profile read skipped:",
+        profileError
+      );
     }
 
-    const partnerName = partner.name || "your partner";
-    const partnerGoal = Number(partner.dailyGoal) || 1800;
+    const partnerName =
+      partner.name || "your partner";
+
+    const partnerGoal =
+      Number(partner.dailyGoal) || 1800;
 
     currentProfile.partnerName = partnerName;
     currentProfile.partnerGoal = partnerGoal;
     renderPartnerGoal = partnerGoal;
 
-    currentProfile.partnerRole = currentProfile.partnerRole ||
-      (currentProfile.role === "boyfriend" ? "girlfriend" : "boyfriend");
+    /*
+     * The tracker is the PARTNER label.
+     */
+    if (!currentProfile.partnerRole) {
+      currentProfile.partnerRole =
+        currentProfile.role === "boyfriend"
+          ? "girlfriend"
+          : "boyfriend";
+    }
 
-    document.getElementById("partnerStatus").textContent =
-      "❤️ Connected to " + partnerName;
+    const status =
+      document.getElementById("partnerStatus");
+    if (status) {
+      status.textContent =
+        "❤️ Connected to " + partnerName;
+    }
 
-    document.getElementById("connectedName").textContent = partnerName;
-    document.getElementById("connectedBar").style.display = "block";
-    document.getElementById("coupleCard").style.display = "none";
+    const connectedBar =
+      document.getElementById("connectedBar");
+    if (connectedBar) {
+      connectedBar.style.display = "block";
+    }
 
-    const goalEl = document.getElementById("partnerGoal");
-    if (goalEl) goalEl.textContent = "/ " + partnerGoal + " kcal";
+    const coupleCard =
+      document.getElementById("coupleCard");
+    if (coupleCard) {
+      coupleCard.style.display = "none";
+    }
 
-    const trackerRole = document.getElementById("trackerRole");
-    if (trackerRole) trackerRole.value = currentProfile.partnerRole;
+    const connectedName =
+      document.getElementById("connectedName");
+    if (connectedName) {
+      connectedName.textContent = partnerName;
+    }
 
-    document.getElementById("partnerTrackerLabel").textContent =
-      currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
+    const partnerGoalEl =
+      document.getElementById("partnerGoal");
+    if (partnerGoalEl) {
+      partnerGoalEl.textContent =
+        "/ " + partnerGoal + " kcal";
+    }
+
+    const trackerLabel =
+      document.getElementById("partnerTrackerLabel");
+    if (trackerLabel) {
+      trackerLabel.textContent =
+        currentProfile.partnerRole === "boyfriend"
+          ? "BOYFRIEND"
+          : "GIRLFRIEND";
+    }
+
+    const settingsStatus =
+      document.getElementById("settingsPartnerStatus");
+    if (settingsStatus) {
+      settingsStatus.textContent =
+        "❤️ Connected to " + partnerName;
+    }
+
+    const settingsTracker =
+      document.getElementById("settingsTrackerRole");
+    if (settingsTracker) {
+      settingsTracker.value =
+        currentProfile.partnerRole;
+    }
+
+    loadSettingsReminderFields();
 
     console.log(
-      "🌸 V20 PARTNER RESOLVED:",
-      partnerId,
-      "| name:",
-      partnerName
+      "🌸 V26 PARTNER RESOLVED:",
+      partnerName,
+      "| uid:",
+      partnerId
     );
 
   } catch (error) {
-    console.error("Resolve partner error:", error);
+    console.error(
+      "V26 Resolve partner error:",
+      error
+    );
 
     /*
-     * Do not overwrite an already-connected card with "Not connected".
-     * If we already have a partnerId, keep the connected state.
+     * Never crash the entire app because partner UI is unavailable.
      */
     if (currentProfile && currentProfile.partnerId) {
-      document.getElementById("partnerStatus").textContent =
-        currentProfile.partnerName
-          ? "❤️ Connected to " + currentProfile.partnerName
-          : "❤️ Connected";
-      document.getElementById("connectedBar").style.display = "block";
-      document.getElementById("coupleCard").style.display = "none";
+      const status =
+        document.getElementById("partnerStatus");
+      if (status) {
+        status.textContent =
+          currentProfile.partnerName
+            ? "❤️ Connected to " + currentProfile.partnerName
+            : "❤️ Connected";
+      }
+
+      const settingsStatus =
+        document.getElementById("settingsPartnerStatus");
+      if (settingsStatus) {
+        settingsStatus.textContent =
+          currentProfile.partnerName
+            ? "❤️ Connected to " + currentProfile.partnerName
+            : "❤️ Connected";
+      }
     }
   }
 }
-
 function listenToCoupleChanges() {
   if (unsubscribeCouple) unsubscribeCouple();
 
@@ -2052,7 +2191,7 @@ function renderMyMeals(meals) {
 }
 
 function renderNutrition(t) {
-  document.getElementById("myCalories").textContent =
+  if (!document.getElementById('myCalories')) return;  document.getElementById("myCalories").textContent =
     Math.round(t.calories);
 
   document.getElementById("myProgress").style.width =
@@ -2525,7 +2664,12 @@ window.connectPartner = async function() {
    Reminders
 ------------------------- */
 window.toggleReminder = async function() {
-  const enabled = document.getElementById("reminderToggle").checked;
+  const oldToggle = document.getElementById("reminderToggle");
+  if (!oldToggle) {
+    return toggleReminderFromSettings();
+  }
+
+  const enabled = oldToggle.checked;
 
   try {
     await db.collection("users").doc(currentUser.uid).update({
@@ -2543,9 +2687,17 @@ window.toggleReminder = async function() {
 };
 
 window.saveReminders = async function() {
-  const breakfast = document.getElementById("breakfast").value;
-  const lunch = document.getElementById("lunch").value;
-  const dinner = document.getElementById("dinner").value;
+  const breakfastEl = document.getElementById("breakfast");
+  const lunchEl = document.getElementById("lunch");
+  const dinnerEl = document.getElementById("dinner");
+
+  if (!breakfastEl || !lunchEl || !dinnerEl) {
+    return saveRemindersFromSettings();
+  }
+
+  const breakfast = breakfastEl.value;
+  const lunch = lunchEl.value;
+  const dinner = dinnerEl.value;
 
   try {
     await db.collection("users").doc(currentUser.uid).update({
@@ -2577,8 +2729,12 @@ window.openSettings = function(){
   if(codeEl) codeEl.textContent=code;
 
   const status=document.getElementById("settingsPartnerStatus");
-  if(status) status.textContent=currentProfile && currentProfile.partnerName
-    ? "❤️ Connected to "+currentProfile.partnerName : "Not connected";
+  if(status) {
+    status.textContent =
+      currentProfile && currentProfile.partnerName
+        ? "❤️ Connected to " + currentProfile.partnerName
+        : "Not connected";
+  }
 
   const role=document.getElementById("settingsTrackerRole");
   if(role) role.value=(currentProfile && currentProfile.partnerRole) ||
@@ -2831,23 +2987,35 @@ window.toggleEffects=async function(){
 };
 
 function loadReminders() {
-  const reminders = currentProfile.reminders;
-  if (!reminders) return;
+  /*
+   * Legacy helper retained for backwards compatibility.
+   * Reminder UI now lives only in Settings.
+   */
+  if (!currentProfile) return;
 
-  document.getElementById("reminderToggle").checked =
-    reminders.enabled !== false;
+  const reminders = currentProfile.reminders || {};
+  const toggle = document.getElementById("reminderToggle");
+  const breakfast = document.getElementById("breakfast");
+  const lunch = document.getElementById("lunch");
+  const dinner = document.getElementById("dinner");
 
-  document.getElementById("breakfast").value =
-    reminders.breakfast || "08:00";
+  if (toggle) {
+    toggle.checked = reminders.enabled !== false;
+  }
 
-  document.getElementById("lunch").value =
-    reminders.lunch || "13:00";
+  if (breakfast) {
+    breakfast.value = reminders.breakfast || "08:00";
+  }
 
-  document.getElementById("dinner").value =
-    reminders.dinner || "19:30";
+  if (lunch) {
+    lunch.value = reminders.lunch || "13:00";
+  }
+
+  if (dinner) {
+    dinner.value = reminders.dinner || "19:30";
+  }
 }
-
-console.log("🌸 YApp V24 CONNECT CODE FIX loaded successfully.");
+console.log("🌸 YApp V26 SAFE SETTINGS loaded successfully.");
 </script>
 
 
