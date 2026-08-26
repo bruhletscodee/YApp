@@ -5,13 +5,9 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": [
-    "window-controls-overlay",
-    "standalone"
-  ],
   "background_color": "#fff8fb",
   "theme_color": "#d45d8b",
-  "description": "YApp \u2014 eat better, together.",
+  "description": "YApp - eat better, together.",
   "orientation": "portrait-primary",
   "categories": [
     "health",
