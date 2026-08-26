@@ -1483,24 +1483,43 @@ async function resolvePartnerFromCouple() {
       document.getElementById("partnerStatus").textContent = "Waiting for partner";
       document.getElementById("connectedBar").style.display = "none";
       document.getElementById("coupleCard").style.display = "block";
-      if (unsubscribePartner) { unsubscribePartner(); unsubscribePartner = null; }
+      if (unsubscribePartner) {
+        unsubscribePartner();
+        unsubscribePartner = null;
+      }
       return;
     }
 
     currentProfile.partnerId = partnerId;
 
-    const partnerSnap = await db.collection("users").doc(partnerId).get();
-    const partner = partnerSnap.exists ? partnerSnap.data() : {};
+    /* A profile-read failure must not make a valid couple look disconnected. */
+    let partner = {};
+    try {
+      const partnerSnap = await db.collection("users").doc(partnerId).get();
+      if (partnerSnap.exists) partner = partnerSnap.data() || {};
+    } catch (profileError) {
+      console.warn("Partner profile read failed; using fallback:", profileError);
+    }
+
     const partnerName = partner.name || "your partner";
+    const partnerGoal = Number(partner.dailyGoal) || 1800;
 
     currentProfile.partnerName = partnerName;
+    currentProfile.partnerGoal = partnerGoal;
+    renderPartnerGoal = partnerGoal;
+
     currentProfile.partnerRole = currentProfile.partnerRole ||
       (currentProfile.role === "boyfriend" ? "girlfriend" : "boyfriend");
 
-    document.getElementById("partnerStatus").textContent = "❤️ Connected to " + partnerName;
+    document.getElementById("partnerStatus").textContent =
+      "❤️ Connected to " + partnerName;
+
     document.getElementById("connectedName").textContent = partnerName;
     document.getElementById("connectedBar").style.display = "block";
     document.getElementById("coupleCard").style.display = "none";
+
+    const goalEl = document.getElementById("partnerGoal");
+    if (goalEl) goalEl.textContent = "/ " + partnerGoal + " kcal";
 
     const trackerRole = document.getElementById("trackerRole");
     if (trackerRole) trackerRole.value = currentProfile.partnerRole;
@@ -1508,14 +1527,23 @@ async function resolvePartnerFromCouple() {
     document.getElementById("partnerTrackerLabel").textContent =
       currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
 
-    /*
-     * Start the real-time food listener only after the partner UID
-     * has been resolved.
-     */
     listenToPartnerMeals();
+
   } catch (error) {
     console.error("Resolve partner error:", error);
-    document.getElementById("partnerStatus").textContent = "Not connected";
+
+    /*
+     * Do not overwrite an already-connected card with "Not connected".
+     * If we already have a partnerId, keep the connected state.
+     */
+    if (currentProfile && currentProfile.partnerId) {
+      document.getElementById("partnerStatus").textContent =
+        currentProfile.partnerName
+          ? "❤️ Connected to " + currentProfile.partnerName
+          : "❤️ Connected";
+      document.getElementById("connectedBar").style.display = "block";
+      document.getElementById("coupleCard").style.display = "none";
+    }
   }
 }
 
@@ -1551,23 +1579,25 @@ function listenToPartnerMeals() {
   }
 
   /*
-   * Listen ONLY to the partner's food inside this couple.
-   * Using both fields makes the listener precise and avoids
-   * receiving your own food and filtering it afterwards.
+   * Use a single-field query so Firestore does not require a composite index.
+   * Filter by partner UID in JavaScript.
    */
   const q = db.collection("foodLogs")
-    .where("coupleId", "==", currentProfile.coupleId)
-    .where("userId", "==", currentProfile.partnerId);
+    .where("coupleId", "==", currentProfile.coupleId);
 
   unsubscribePartner = q.onSnapshot(
     function(snapshot) {
       const meals = [];
 
       snapshot.forEach(function(item) {
-        meals.push({
-          id: item.id,
-          ...item.data()
-        });
+        const data = item.data();
+
+        if (data.userId === currentProfile.partnerId) {
+          meals.push({
+            id: item.id,
+            ...data
+          });
+        }
       });
 
       console.log(
@@ -1582,20 +1612,15 @@ function listenToPartnerMeals() {
 
       window.__partnerMeals = meals.slice();
 
-      /* Update the calorie card immediately on EVERY snapshot. */
+      /* This updates calories, goal, status and progress immediately. */
       renderPartnerMeals(meals);
-
-      /* If the partner-log window is open, update it immediately too. */
-      if (
-        document.getElementById("partnerLogsModal") &&
-        document.getElementById("partnerLogsModal").classList.contains("show")
-      ) {
-        renderPartnerLogList(meals);
-      }
     },
     function(error) {
       console.error("Partner realtime listener:", error);
-      showToast("Could not sync partner food: " + (error.code || error.message));
+      showToast(
+        "Could not sync partner food: " +
+        (error.code || error.message)
+      );
     }
   );
 }
@@ -1730,18 +1755,56 @@ function renderPartnerMeals(meals) {
   const todayMeals = meals.filter(m => m.date === today());
   const totals = calculateTotals(todayMeals);
   window.__partnerMeals = meals.slice();
-  if (document.getElementById("partnerLogsModal") && document.getElementById("partnerLogsModal").classList.contains("show")) {
-    renderPartnerLogList(meals);
+
+  /*
+   * The realtime food listener itself proves that a partner exists.
+   * Therefore the partner card must never fall back to "Not connected"
+   * just because the separate profile/goal read has not finished.
+   */
+  const goal = Number(renderPartnerGoal) > 0 ? Number(renderPartnerGoal) : 1800;
+
+  const caloriesEl = document.getElementById("partnerCalories");
+  const progressEl = document.getElementById("partnerProgress");
+  const goalEl = document.getElementById("partnerGoal");
+  const statusEl = document.getElementById("partnerStatus");
+
+  if (caloriesEl) {
+    caloriesEl.textContent = Math.round(totals.calories);
   }
 
-  document.getElementById("partnerCalories").textContent =
-    Math.round(totals.calories);
+  if (progressEl) {
+    progressEl.style.width =
+      Math.min(100, (totals.calories / goal) * 100) + "%";
+  }
 
-  document.getElementById("partnerProgress").style.width =
-    Math.min(100, (totals.calories / renderPartnerGoal) * 100) + "%";
+  if (goalEl) {
+    goalEl.textContent = "/ " + goal + " kcal";
+  }
 
-  document.getElementById("partnerStatus").textContent =
-    "❤️ Connected";
+  if (statusEl) {
+    statusEl.textContent =
+      currentProfile && currentProfile.partnerName
+        ? "❤️ Connected to " + currentProfile.partnerName
+        : "❤️ Connected";
+  }
+
+  const connectedBar = document.getElementById("connectedBar");
+  const coupleCard = document.getElementById("coupleCard");
+
+  if (connectedBar && currentProfile && currentProfile.partnerId) {
+    connectedBar.style.display = "block";
+  }
+
+  if (coupleCard && currentProfile && currentProfile.partnerId) {
+    coupleCard.style.display = "none";
+  }
+
+  if (
+    document.getElementById("partnerLogsModal") &&
+    document.getElementById("partnerLogsModal").classList.contains("show")
+  ) {
+    renderPartnerLogList(meals);
+  }
 }
 
 /* -------------------------
