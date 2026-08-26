@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V43 - REMINDER BUTTON FIX -->
 <!-- YAPP VERSION: V41 - IOS SAFE GEMINI JSON -->
 <!-- YAPP VERSION: V33 - PETALS DETACH FROM CHERRY BLOSSOM BRANCH -->
 <!-- YAPP VERSION: V32 - CHERRY BRANCH CANOPY + PETAL FALL -->
@@ -1388,6 +1389,15 @@ let unsubscribePartner = null;
 let unsubscribeCouple = null;
 let renderPartnerGoal = 1800;
 
+/*
+ * iOS/PWA AUTH PERSISTENCE FIX
+ *
+ * Safari can restore Firebase Auth a little later than the page loads.
+ * We explicitly use LOCAL persistence and wait for it before deciding
+ * that the user is logged out.
+ */
+let authPersistenceReady = Promise.resolve();
+
 /* -------------------------
    Firebase bootstrap
 ------------------------- */
@@ -1399,6 +1409,21 @@ try {
   app = firebase.initializeApp(firebaseConfig);
   auth = firebase.auth();
   db = firebase.firestore();
+
+  /*
+   * Force Firebase Auth to keep the login locally.
+   * This is especially important for iPhone Safari/PWA.
+   */
+  authPersistenceReady = auth.setPersistence(
+    firebase.auth.Auth.Persistence.LOCAL
+  ).then(function() {
+    console.log("🌸 YApp iOS LOCAL auth persistence ready.");
+  }).catch(function(error) {
+    console.warn(
+      "🌸 Could not set LOCAL auth persistence:",
+      error
+    );
+  });
 
   console.log("🌸 YApp Firebase ready.");
 } catch (error) {
@@ -1473,7 +1498,12 @@ window.signup = async function() {
   }
 
   try {
-    await auth.createUserWithEmailAndPassword(email, password);
+    await authPersistenceReady;
+
+    await auth.createUserWithEmailAndPassword(
+      email,
+      password
+    );
     showToast("Account created 🌸");
   } catch (error) {
     console.error("Signup error:", error);
@@ -1496,7 +1526,12 @@ window.login = async function() {
   }
 
   try {
-    await auth.signInWithEmailAndPassword(email, password);
+    await authPersistenceReady;
+
+    await auth.signInWithEmailAndPassword(
+      email,
+      password
+    );
   } catch (error) {
     console.error("Login error:", error);
     showToast(error.message || "Login failed.");
@@ -1573,15 +1608,35 @@ window.saveProfile = async function() {
 ------------------------- */
 if (auth) {
   auth.onAuthStateChanged(async function(user) {
+    /*
+     * IMPORTANT:
+     * On iOS Safari/PWA the first auth callback can arrive before
+     * Firebase has finished restoring LOCAL persistence.
+     */
+    await authPersistenceReady;
+
+    /*
+     * Re-read currentUser after persistence restoration.
+     */
+    user = user || auth.currentUser || null;
     currentUser = user;
 
     if (!user) {
+      console.log("🌸 No saved YApp login found.");
       showPage("auth");
       return;
     }
 
+    console.log(
+      "🌸 YApp login restored:",
+      user.uid
+    );
+
     try {
-      const snap = await db.collection("users").doc(user.uid).get();
+      const snap =
+        await db.collection("users")
+          .doc(user.uid)
+          .get();
 
       if (!snap.exists) {
         showPage("profile");
@@ -1590,8 +1645,23 @@ if (auth) {
         startApp();
       }
     } catch (error) {
-      console.error("Profile load error:", error);
-      showToast(error.message || "Could not load your profile.");
+      console.error(
+        "Profile load error:",
+        error
+      );
+
+      /*
+       * Do NOT sign the user out because Firestore temporarily
+       * failed. Keep the Firebase session intact.
+       */
+      if (auth.currentUser) {
+        currentUser = auth.currentUser;
+      }
+
+      showToast(
+        error.message ||
+        "Could not load your profile."
+      );
     }
   });
 }
@@ -4551,6 +4621,82 @@ async function registerYAppServiceWorker() {
 }
 
 window.addEventListener("load", registerYAppServiceWorker);
+
+
+/* =========================================================
+   V43 REMINDER BUTTON FIX
+========================================================= */
+(function initReminderButtonFix() {
+  function openReminderUI() {
+    const ids = [
+      "reminderSettings",
+      "reminderPanel",
+      "settingsReminder",
+      "reminderModal",
+      "mealReminderPanel"
+    ];
+
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.hidden = false;
+        el.style.display = "";
+        el.classList.add("open", "active", "show");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        if (el.tagName === "DIALOG") {
+          try {
+            if (!el.open) el.showModal();
+          } catch (e) {}
+        }
+        return true;
+      }
+    }
+
+    /* Reminder controls may be inside Settings. */
+    const settings =
+      document.getElementById("settingsPage") ||
+      document.getElementById("settingsSection") ||
+      document.getElementById("settingsModal");
+
+    if (settings) {
+      settings.hidden = false;
+      settings.style.display = "";
+      settings.classList.add("open", "active", "show");
+      settings.scrollIntoView({ behavior: "smooth", block: "start" });
+      return true;
+    }
+
+    return false;
+  }
+
+  document.addEventListener("click", function(event) {
+    const button = event.target.closest(
+      "button, a, [role='button'], .setting-item, .settings-item"
+    );
+
+    if (!button) return;
+
+    const label = (
+      button.getAttribute("aria-label") ||
+      button.getAttribute("title") ||
+      button.textContent ||
+      ""
+    ).trim().toLowerCase();
+
+    if (label.includes("reminder") || label.includes("meal reminder")) {
+      if (openReminderUI()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }
+  }, true);
+
+  window.openReminderSettings = openReminderUI;
+  window.openMealReminders = openReminderUI;
+
+  console.log("🌸 V43 reminder button fix ready.");
+})();
 
 </script>
 
