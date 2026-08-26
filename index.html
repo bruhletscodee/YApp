@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V51 - SETTINGS CLOSE + PARTNER FOOD SYNC FIX -->
 <!-- YAPP VERSION: V50 - SHARED TEXT COUPLE RESOLUTION FIX -->
 <!-- YAPP VERSION: V49 - MENU AI JSON ROBUST FIX -->
 <!-- YAPP VERSION: V48 - REMINDERS FULLY FIXED -->
@@ -1265,7 +1266,7 @@ COUPLE
         <div class="logo">⚙️ YApp Settings</div>
         <div class="sub">Customize your couple tracker and YApp.</div>
       </div>
-      <button class="close-settings" onclick="closeSettings()">×</button>
+      <button id="settingsCloseButton" class="close-settings" type="button" aria-label="Close settings">×</button>
     </div>
 
     <div class="settings-section">
@@ -2229,6 +2230,12 @@ async function resolvePartnerFromCouple() {
 
     loadSettingsReminderFields();
 
+    if (typeof startSharedTextSync === "function") {
+      setTimeout(startSharedTextSync, 100);
+    }
+
+    listenToPartnerMeals();
+
     console.log(
       "🌸 V26 PARTNER RESOLVED:",
       partnerName,
@@ -2288,120 +2295,172 @@ function listenToCoupleChanges() {
 
 function listenToPartnerMeals() {
   console.log(
-    "🌸 V20 PARTNER LISTENER CALLED",
-    "| couple:",
-    currentProfile && currentProfile.coupleId,
-    "| partner:",
-    currentProfile && currentProfile.partnerId,
-    "| user:",
-    currentUser && currentUser.uid
+    "🌸 V51 PARTNER FOOD LISTENER:",
+    "couple =", currentProfile && currentProfile.coupleId,
+    "| partner =", currentProfile && currentProfile.partnerId,
+    "| me =", currentUser && currentUser.uid
   );
 
   if (unsubscribePartner) {
-    unsubscribePartner();
+    try { unsubscribePartner(); } catch (e) {}
     unsubscribePartner = null;
   }
 
-  if (!currentProfile || !currentProfile.coupleId || !currentUser) {
+  if (!currentProfile || !currentUser || !db) {
     return;
   }
 
-  const coupleId = currentProfile.coupleId;
-  const myUid = currentUser.uid;
+  const partnerId =
+    currentProfile.partnerId || null;
+
+  const coupleId =
+    currentProfile.coupleId || null;
 
   /*
-   * V18 listens to the canonical couple only.
+   * Prefer the partner's UID query.
+   *
+   * This is important because Firestore security rules can safely allow:
+   * "a user may read their partner's food logs"
+   * using a userId == partnerId query.
+   *
+   * The older coupleId query can be blocked by stricter rules even though
+   * the user is correctly connected.
    */
-  const q = db.collection("foodLogs")
-    .where("coupleId", "==", coupleId);
+  if (partnerId) {
+    const partnerQuery =
+      db.collection("foodLogs")
+        .where("userId", "==", partnerId);
 
-  unsubscribePartner = q.onSnapshot(
-    function(snapshot) {
-      const partnerMeals = [];
-      const myMeals = [];
-      const unknownMeals = [];
+    unsubscribePartner =
+      partnerQuery.onSnapshot(
+        function(snapshot) {
+          const partnerMeals = [];
 
-      snapshot.forEach(function(item) {
-        const data = item.data() || {};
-        const meal = {
-          id: item.id,
-          ...data
-        };
+          snapshot.forEach(function(docSnap) {
+            partnerMeals.push({
+              id: docSnap.id,
+              ...docSnap.data()
+            });
+          });
 
-        if (data.userId === myUid) {
-          myMeals.push(meal);
-        } else {
-          partnerMeals.push(meal);
-        }
-      });
+          const todayMeals =
+            partnerMeals.filter(function(meal) {
+              return localDateFromMeal(meal) === today();
+            });
 
-      /*
-       * Find the partner from the canonical couple document if possible.
-       * This keeps the UI correct even when partnerId is stale.
-       */
-      db.collection("couples").doc(coupleId).get()
-        .then(function(coupleSnap) {
-          if (coupleSnap.exists) {
-            const members = Array.isArray(coupleSnap.data().members)
-              ? coupleSnap.data().members
-              : [];
+          window.__partnerMeals =
+            todayMeals.slice();
 
-            const partnerId =
-              members.find(uid => uid !== myUid) || null;
+          console.log(
+            "🌸 V51 PARTNER FOOD BY UID:",
+            todayMeals.length,
+            "| partner:", partnerId,
+            "| couple:", coupleId
+          );
 
-            if (partnerId) {
-              currentProfile.partnerId = partnerId;
-            }
-          }
+          renderPartnerMeals(
+            todayMeals
+          );
+        },
+        function(error) {
+          console.error(
+            "V51 partner UID food listener failed:",
+            error
+          );
 
           /*
-           * Filter by the resolved partner UID when it is available.
+           * Fallback to the canonical couple query if the project rules
+           * permit that route.
            */
-          const resolvedPartnerId = currentProfile.partnerId || null;
+          if (coupleId) {
+            const fallbackQuery =
+              db.collection("foodLogs")
+                .where(
+                  "coupleId",
+                  "==",
+                  coupleId
+                );
 
-          const filteredPartnerMeals = resolvedPartnerId
-            ? partnerMeals.filter(m => m.userId === resolvedPartnerId)
-            : partnerMeals;
+            unsubscribePartner =
+              fallbackQuery.onSnapshot(
+                function(snapshot) {
+                  const meals = [];
 
-          window.__partnerMeals = filteredPartnerMeals.slice();
+                  snapshot.forEach(function(docSnap) {
+                    const data =
+                      docSnap.data() || {};
 
-          console.log(
-            "🌸 V18 COUPLE FOOD:",
-            "you:", myMeals.length,
-            "| partner:", filteredPartnerMeals.length,
-            "| unknown:", unknownMeals.length,
-            "| total:", snapshot.size,
-            "| couple:", coupleId
-          );
+                    if (
+                      data.userId !== currentUser.uid
+                    ) {
+                      meals.push({
+                        id: docSnap.id,
+                        ...data
+                      });
+                    }
+                  });
 
-          renderPartnerMeals(filteredPartnerMeals);
-        })
-        .catch(function(error) {
-          console.error("V18 couple member lookup:", error);
+                  const todayMeals =
+                    meals.filter(function(meal) {
+                      return (
+                        localDateFromMeal(meal) ===
+                        today()
+                      );
+                    });
 
-          window.__partnerMeals = partnerMeals.slice();
+                  window.__partnerMeals =
+                    todayMeals.slice();
 
-          console.log(
-            "🌸 V18 COUPLE FOOD fallback:",
-            "you:", myMeals.length,
-            "| partner:", partnerMeals.length,
-            "| total:", snapshot.size,
-            "| couple:", coupleId
-          );
+                  console.log(
+                    "🌸 V51 PARTNER FOOD COUPLE FALLBACK:",
+                    todayMeals.length
+                  );
 
-          renderPartnerMeals(partnerMeals);
-        });
-    },
-    function(error) {
-      console.error("V18 partner realtime listener:", error);
-      showToast(
-        "Could not sync partner food: " +
-        (error.code || error.message)
+                  renderPartnerMeals(
+                    todayMeals
+                  );
+                },
+                function(fallbackError) {
+                  console.error(
+                    "V51 partner food fallback failed:",
+                    fallbackError
+                  );
+
+                  showToast(
+                    "Could not sync partner food: " +
+                    (
+                      fallbackError.code ||
+                      fallbackError.message ||
+                      "permission-denied"
+                    )
+                  );
+                }
+              );
+          } else {
+            showToast(
+              "Partner food sync needs an active connection."
+            );
+          }
+        }
       );
-    }
-  );
-}
 
+    return;
+  }
+
+  /*
+   * No partnerId yet: try to resolve the couple, then retry.
+   */
+  resolvePartnerFromCouple()
+    .then(function() {
+      listenToPartnerMeals();
+    })
+    .catch(function(error) {
+      console.error(
+        "V51 partner resolution before food sync:",
+        error
+      );
+    });
+}
 
 /* -------------------------
    Partner tracker controls
@@ -3682,6 +3741,9 @@ window.openSettings = function(){
   const modal=document.getElementById("settingsModal");
   if(!modal) return;
   modal.classList.add("show");
+  modal.style.display = "flex";
+  modal.setAttribute("aria-hidden","false");
+  document.body.classList.add("settings-open");
 
   const code=currentProfile && currentProfile.coupleCode ? currentProfile.coupleCode : "------";
   const codeEl=document.getElementById("settingsMyCode");
@@ -3705,7 +3767,14 @@ window.openSettings = function(){
 
 window.closeSettings=function(){
   const modal=document.getElementById("settingsModal");
-  if(modal) modal.classList.remove("show");
+
+  if (!modal) return;
+
+  modal.classList.remove("show");
+  modal.style.display = "none";
+  modal.setAttribute("aria-hidden","true");
+
+  document.body.classList.remove("settings-open");
 };
 
 window.copyCoupleCode=async function(){
@@ -5361,6 +5430,37 @@ const oldResolvePartner =
     <div id="partnerLogsList"></div>
   </div>
 </div>
+
+
+<script>
+(function bindYAppSettingsClose() {
+  function bind() {
+    const button =
+      document.getElementById("settingsCloseButton");
+
+    if (!button || button.dataset.bound === "true") return;
+
+    button.dataset.bound = "true";
+
+    button.addEventListener("click", function(event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (typeof window.closeSettings === "function") {
+        window.closeSettings();
+      }
+    });
+
+    console.log("🌸 V51 settings close button ready.");
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind);
+  } else {
+    bind();
+  }
+})();
+</script>
 
 </body>
 </html>
