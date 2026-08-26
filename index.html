@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V19 HUMAN COUPLE CODE + INTERNAL CANONICAL ID -->
 <!-- YAPP VERSION: V18 CANONICAL COUPLE - BOTH PHONES SHARE ONE ID -->
 <!-- YAPP VERSION: V17 COMPLETE PARTNER SYNC -->
 <!-- YAPP VERSION: V16 REAL PARTNER FIX - COUPLE SOURCE OF TRUTH -->
@@ -1385,6 +1386,27 @@ if (auth) {
 /* -------------------------
    App startup
 ------------------------- */
+
+async function refreshDisplayedCoupleCode() {
+  try {
+    if (!currentProfile || !currentProfile.coupleId || !db) return;
+
+    const snap = await db.collection("couples")
+      .doc(currentProfile.coupleId)
+      .get();
+
+    if (!snap.exists) return;
+
+    const data = snap.data() || {};
+    const humanCode = data.code || currentProfile.coupleCode || "------";
+
+    const codeEl = document.getElementById("myCode");
+    if (codeEl) codeEl.textContent = humanCode;
+  } catch (error) {
+    console.warn("Could not refresh couple code:", error);
+  }
+}
+
 async function startApp() {
   showPage("main");
 
@@ -1416,6 +1438,7 @@ async function startApp() {
    * starting food listeners.
    */
   await normalizeCurrentCouple();
+  await refreshDisplayedCoupleCode();
   await migrateOwnFoodLogsToCouple();
 
   listenToMyMeals();
@@ -1426,6 +1449,16 @@ async function startApp() {
 /* -------------------------
    Food listeners
 ------------------------- */
+
+
+function generateHumanCoupleCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
 
 function canonicalCoupleId(uidA, uidB) {
   const ids = [String(uidA || ""), String(uidB || "")]
@@ -1516,7 +1549,8 @@ async function normalizeCurrentCouple() {
               ])];
 
               await canonicalRef.update({
-                members: merged
+                members: merged,
+                internalId: canonicalId
               });
             }
 
@@ -2320,7 +2354,7 @@ window.connectPartner = async function() {
     document.getElementById("coupleCode").value.trim().toUpperCase();
 
   if (!code) {
-    showToast("Enter your partner's code.");
+    showToast("Enter your partner's 6-character code.");
     return;
   }
 
@@ -2330,24 +2364,30 @@ window.connectPartner = async function() {
   }
 
   try {
-    const coupleRef = db.collection("couples").doc(code);
-    const coupleSnap = await coupleRef.get();
+    /*
+     * Human code lookup. We do NOT expose the long UID-based internal ID.
+     */
+    const snap = await db.collection("couples")
+      .where("code", "==", code)
+      .limit(1)
+      .get();
 
-    if (!coupleSnap.exists) {
-      showToast("No couple found with code " + code);
+    if (snap.empty) {
+      showToast("Couple code not found.");
       return;
     }
 
-    const couple = coupleSnap.data() || {};
+    const coupleDoc = snap.docs[0];
+    const coupleRef = coupleDoc.ref;
+    const couple = coupleDoc.data() || {};
+
     const members = Array.isArray(couple.members)
       ? couple.members.filter(Boolean)
       : [];
 
     if (members.includes(currentUser.uid)) {
-      /*
-       * Already a member: still normalize this pair.
-       */
       await normalizeCurrentCouple();
+      await refreshDisplayedCoupleCode();
       await migrateOwnFoodLogsToCouple();
       await resolvePartnerFromCouple();
       listenToCoupleChanges();
@@ -2367,37 +2407,22 @@ window.connectPartner = async function() {
       return;
     }
 
-    /*
-     * Add this account to the legacy couple document so both
-     * existing accounts remain members of the original pair.
-     */
     await coupleRef.update({
       members: [...members, currentUser.uid]
     });
 
-    /*
-     * Set this user's legacy partner reference.
-     */
     await db.collection("users")
       .doc(currentUser.uid)
       .update({
-        coupleId: code,
+        coupleId: coupleRef.id,
         partnerId: partnerId
       });
 
-    currentProfile.coupleId = code;
+    currentProfile.coupleId = coupleRef.id;
     currentProfile.partnerId = partnerId;
 
-    /*
-     * IMPORTANT: converge this account onto the canonical pair ID.
-     */
-    const canonicalId =
-      await normalizeCurrentCouple();
-
-    if (canonicalId) {
-      currentProfile.coupleId = canonicalId;
-    }
-
+    await normalizeCurrentCouple();
+    await refreshDisplayedCoupleCode();
     await migrateOwnFoodLogsToCouple();
 
     document.getElementById("coupleCode").value = "";
@@ -2406,9 +2431,8 @@ window.connectPartner = async function() {
     listenToCoupleChanges();
 
     showToast("❤️ Partner connected!");
-
   } catch (error) {
-    console.error("V18 connect partner error:", error);
+    console.error("V19 connect partner error:", error);
     showToast(
       "Firebase error: " +
       (error.code || error.message)
@@ -2473,7 +2497,7 @@ function loadReminders() {
     reminders.dinner || "19:30";
 }
 
-console.log("🌸 YApp V18 CANONICAL COUPLE loaded successfully.");
+console.log("🌸 YApp V19 HUMAN COUPLE CODE loaded successfully.");
 </script>
 
 
