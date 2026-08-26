@@ -513,13 +513,13 @@ Welcome
 
 <button
   class="btn"
-  onclick="login()">
+  id="loginBtn">
 LOG IN
 </button>
 
 <button
   class="btn secondary"
-  onclick="signup()">
+  id="signupBtn">
 CREATE ACCOUNT
 </button>
 
@@ -567,7 +567,7 @@ Tell YApp a little about yourself.
 
 <button
   class="btn"
-  onclick="saveProfile()">
+  id="saveProfileBtn">
 CONTINUE
 </button>
 
@@ -601,7 +601,7 @@ Eat better, together.
 
 <button
   class="logout"
-  onclick="logout()">
+  id="logoutBtn">
 Log out
 </button>
 
@@ -920,7 +920,7 @@ Tell YApp naturally what you ate.
 <button
   id="aiButton"
   class="btn"
-  onclick="analyzeFood()">
+  id="analyzeFoodBtn">
 
 ✨ Analyze & Add
 
@@ -973,7 +973,7 @@ She can enter it on her account.
 
 <button
   class="btn"
-  onclick="connectPartner()">
+  id="connectPartnerBtn">
 
 CONNECT PARTNER
 
@@ -1017,8 +1017,7 @@ You can turn yours off.
 
 <input
   id="reminderToggle"
-  type="checkbox"
-  onchange="toggleReminder()">
+  type="checkbox">
 
 <span class="slider"></span>
 
@@ -1044,7 +1043,7 @@ You can turn yours off.
 
 <button
   class="btn"
-  onclick="saveReminders()">
+  id="saveRemindersBtn">
 
 SAVE REMINDERS
 
@@ -3237,6 +3236,17 @@ async function(){
 
 };
 
+
+// Bind UI buttons from the module instead of inline onclick handlers.
+// This avoids module/global-scope issues on GitHub Pages.
+document.getElementById("loginBtn")?.addEventListener("click", () => window.login());
+document.getElementById("signupBtn")?.addEventListener("click", () => window.signup());
+document.getElementById("saveProfileBtn")?.addEventListener("click", () => window.saveProfile());
+document.getElementById("analyzeFoodBtn")?.addEventListener("click", () => window.analyzeFood());
+document.getElementById("connectPartnerBtn")?.addEventListener("click", () => window.connectPartner());
+document.getElementById("reminderToggle")?.addEventListener("change", () => window.toggleReminder());
+document.getElementById("saveRemindersBtn")?.addEventListener("click", () => window.saveReminders());
+document.getElementById("logoutBtn")?.addEventListener("click", () => window.logout());
 
 console.log(
   "🌸 YApp loaded successfully."
