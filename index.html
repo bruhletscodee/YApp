@@ -1,4 +1,5 @@
-<!-- YAPP VERSION: V13 FINAL - PARTNER FOOD SYNC FIX -->
+<!-- YAPP VERSION: V14 REAL FIX - PARTNER TODAY CALORIE SYNC -->
+<!-- YAPP VERSION: V14 REAL FIX - PARTNER TODAY CALORIE SYNC -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1781,17 +1782,67 @@ function renderNutrition(t) {
   document.getElementById("nVitaminD").textContent = t.vitaminD.toFixed(1) + " µg";
 }
 
+function localDateFromMeal(meal) {
+  /*
+   * IMPORTANT:
+   * Firestore is delivering the partner meal (the console proves this),
+   * but older entries can have a date string that differs from the
+   * phone's local date. Use createdAt first, then fall back to date.
+   */
+  if (meal && meal.createdAt) {
+    try {
+      let d = null;
+
+      if (typeof meal.createdAt.toDate === "function") {
+        d = meal.createdAt.toDate();
+      } else if (meal.createdAt instanceof Date) {
+        d = meal.createdAt;
+      } else {
+        d = new Date(meal.createdAt);
+      }
+
+      if (d && !isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      }
+    } catch (e) {
+      console.warn("Could not read meal createdAt:", e);
+    }
+  }
+
+  return meal && meal.date ? String(meal.date).slice(0, 10) : "";
+}
+
 function renderPartnerMeals(meals) {
-  const todayMeals = meals.filter(m => m.date === today());
+  const todayKey = today();
+
+  /*
+   * REAL FIX:
+   * The realtime listener can receive a meal, but the old renderer
+   * discarded it if meal.date did not exactly equal today's local date.
+   */
+  const todayMeals = meals.filter(function(m) {
+    return localDateFromMeal(m) === todayKey;
+  });
+
   const totals = calculateTotals(todayMeals);
   window.__partnerMeals = meals.slice();
 
-  /*
-   * The realtime food listener itself proves that a partner exists.
-   * Therefore the partner card must never fall back to "Not connected"
-   * just because the separate profile/goal read has not finished.
-   */
-  const goal = Number(renderPartnerGoal) > 0 ? Number(renderPartnerGoal) : 1800;
+  console.log(
+    "🌸 Partner TODAY:",
+    todayMeals.length,
+    "meal(s),",
+    Math.round(totals.calories),
+    "kcal from",
+    meals.length,
+    "synced meal(s)"
+  );
+
+  const goal = Number(renderPartnerGoal) > 0
+    ? Number(renderPartnerGoal)
+    : 1800;
 
   const caloriesEl = document.getElementById("partnerCalories");
   const progressEl = document.getElementById("partnerProgress");
@@ -1836,6 +1887,7 @@ function renderPartnerMeals(meals) {
     renderPartnerLogList(meals);
   }
 }
+
 
 /* -------------------------
    Gemini
@@ -2201,7 +2253,7 @@ function loadReminders() {
     reminders.dinner || "19:30";
 }
 
-console.log("🌸 YApp V12.1 loaded successfully.");
+console.log("🌸 YApp V14 loaded successfully.");
 </script>
 
 
