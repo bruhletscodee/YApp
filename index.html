@@ -1142,15 +1142,6 @@ from
 "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 
-import {
-  getAI,
-  getGenerativeModel,
-  GoogleAIBackend
-}
-from
-"https://www.gstatic.com/firebasejs/12.7.0/firebase-ai.js";
-
-
 /* ================================
 FIREBASE CONFIG
 ================================ */
@@ -1200,45 +1191,45 @@ const db =
 
 
 /* ================================
-INITIALIZE GEMINI
+INITIALIZE GEMINI (OPTIONAL)
 ================================ */
 
 let model = null;
 
-try{
+async function initAI(){
 
-  const ai =
-    getAI(
+  try{
+
+    const aiModule = await import(
+      "https://www.gstatic.com/firebasejs/12.7.0/firebase-ai.js"
+    );
+
+    const ai = aiModule.getAI(
       app,
       {
-        backend:
-        new GoogleAIBackend()
+        backend: new aiModule.GoogleAIBackend()
       }
     );
 
-
-  model =
-    getGenerativeModel(
+    model = aiModule.getGenerativeModel(
       ai,
-      {
-        model:
-        "gemini-3.6-flash"
-      }
+      { model: "gemini-3.6-flash" }
     );
 
+    console.log("YApp Gemini initialized.");
 
-  console.log(
-    "YApp Gemini initialized."
-  );
+  }catch(error){
 
-}catch(error){
+    console.warn(
+      "YApp AI unavailable. Login and Firestore will still work.",
+      error
+    );
 
-  console.error(
-    "YApp AI initialization error:",
-    error
-  );
-
+  }
 }
+
+// Start AI separately so an AI failure can never stop login.
+initAI();
 
 
 /* ================================
