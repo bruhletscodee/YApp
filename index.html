@@ -1405,28 +1405,57 @@ async function startApp() {
 async function migrateOwnFoodLogsToCouple() {
   if (!currentUser || !currentProfile || !currentProfile.coupleId) return;
 
+  const activeCoupleId = currentProfile.coupleId;
+
   try {
+    /*
+     * IMPORTANT FIX:
+     *
+     * Earlier versions only fixed logs where coupleId was EMPTY.
+     * If a meal was created under an older couple code, it still had
+     * the old coupleId and therefore the partner could not see it.
+     *
+     * Every meal owned by the current user should belong to the
+     * current couple. We therefore correct ALL of the user's logs
+     * whose coupleId is missing OR different.
+     */
     const snap = await db.collection("foodLogs")
       .where("userId", "==", currentUser.uid)
       .get();
 
-    const docs = snap.docs.filter(d => {
-      const data = d.data();
-      return !data.coupleId;
+    const docs = snap.docs.filter(function(d) {
+      const data = d.data() || {};
+      return data.coupleId !== activeCoupleId;
     });
 
-    if (!docs.length) return;
+    if (!docs.length) {
+      console.log(
+        "🌸 Food logs already synced to couple",
+        activeCoupleId
+      );
+      return;
+    }
 
-    // Firestore batches support up to 500 writes.
+    /* Firestore batches support up to 500 writes. */
     for (let i = 0; i < docs.length; i += 450) {
       const batch = db.batch();
-      docs.slice(i, i + 450).forEach(d => {
-        batch.update(d.ref, { coupleId: currentProfile.coupleId });
+
+      docs.slice(i, i + 450).forEach(function(d) {
+        batch.update(d.ref, {
+          coupleId: activeCoupleId
+        });
       });
+
       await batch.commit();
     }
 
-    console.log("🌸 Migrated", docs.length, "food logs to couple", currentProfile.coupleId);
+    console.log(
+      "🌸 Corrected",
+      docs.length,
+      "food log(s) to current couple",
+      activeCoupleId
+    );
+
   } catch (error) {
     console.error("Food couple migration:", error);
   }
