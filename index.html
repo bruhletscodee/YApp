@@ -1,4 +1,5 @@
-<!-- YAPP VERSION: V15 REAL CORRECTED - LOCAL DATE + PARTNER SYNC -->
+<!-- YAPP VERSION: V16 REAL PARTNER FIX - COUPLE SOURCE OF TRUTH -->
+<!-- YAPP VERSION: V16 REAL PARTNER FIX - COUPLE SOURCE OF TRUTH -->
 <!-- YAPP VERSION: V15 REAL CORRECTED - PARTNER TODAY CALORIE SYNC -->
 <!-- YAPP VERSION: V14 REAL FIX - PARTNER TODAY CALORIE SYNC -->
 <!DOCTYPE html>
@@ -1617,50 +1618,84 @@ function listenToPartnerMeals() {
     unsubscribePartner = null;
   }
 
-  if (!currentProfile || !currentProfile.coupleId || !currentProfile.partnerId) {
-    console.warn("Partner listener waiting for coupleId/partnerId.");
+  if (!currentProfile || !currentProfile.coupleId || !currentUser) {
+    console.warn("Partner listener waiting for coupleId/currentUser.");
     return;
   }
 
   /*
-   * Use a single-field query so Firestore does not require a composite index.
-   * Filter by partner UID in JavaScript.
+   * V16 REAL FIX:
+   *
+   * Do NOT rely on partnerId when finding the partner's meals.
+   * The couple document is the source of truth and contains exactly
+   * the two members. We listen to ALL food logs for this couple and
+   * identify the partner as "the other UID".
+   *
+   * This fixes old/stale partnerId values and guarantees that the
+   * person whose food belongs to this couple is the person displayed.
    */
+  const coupleId = currentProfile.coupleId;
+  const myUid = currentUser.uid;
+
   const q = db.collection("foodLogs")
-    .where("coupleId", "==", currentProfile.coupleId);
+    .where("coupleId", "==", coupleId);
 
   unsubscribePartner = q.onSnapshot(
     function(snapshot) {
-      const meals = [];
+      const allCoupleMeals = [];
+      const partnerMeals = [];
 
       snapshot.forEach(function(item) {
-        const data = item.data();
+        const data = item.data() || {};
+        const meal = {
+          id: item.id,
+          ...data
+        };
 
-        if (data.userId === currentProfile.partnerId) {
-          meals.push({
-            id: item.id,
-            ...data
-          });
+        allCoupleMeals.push(meal);
+
+        /* Anything in this couple that isn't MY UID is partner food. */
+        if (data.userId && data.userId !== myUid) {
+          partnerMeals.push(meal);
         }
       });
 
+      /*
+       * If there is partner food, use the actual UID found in the
+       * food logs as the partner UID. This prevents a stale partnerId
+       * from pointing at the wrong person.
+       */
+      const partnerIds = [...new Set(
+        partnerMeals
+          .map(m => m.userId)
+          .filter(Boolean)
+      )];
+
+      if (partnerIds.length > 0) {
+        currentProfile.partnerId = partnerIds[0];
+      }
+
       console.log(
-        "🌸 Partner realtime update:",
-        meals.length,
-        "meal(s)",
-        "couple:",
-        currentProfile.coupleId,
-        "partner:",
-        currentProfile.partnerId
+        "🌸 V16 PARTNER SYNC:",
+        partnerMeals.length,
+        "partner meal(s)",
+        "| couple:",
+        coupleId,
+        "| me:",
+        myUid,
+        "| partner:",
+        currentProfile.partnerId || "not found",
+        "| all couple meals:",
+        allCoupleMeals.length
       );
 
-      window.__partnerMeals = meals.slice();
+      window.__partnerMeals = partnerMeals.slice();
 
-      /* This updates calories, goal, status and progress immediately. */
-      renderPartnerMeals(meals);
+      /* Recalculate and redraw immediately on every Firestore snapshot. */
+      renderPartnerMeals(partnerMeals);
     },
     function(error) {
-      console.error("Partner realtime listener:", error);
+      console.error("V16 Partner realtime listener:", error);
       showToast(
         "Could not sync partner food: " +
         (error.code || error.message)
@@ -1668,6 +1703,7 @@ function listenToPartnerMeals() {
     }
   );
 }
+
 
 /* -------------------------
    Partner tracker controls
@@ -2266,7 +2302,7 @@ function loadReminders() {
     reminders.dinner || "19:30";
 }
 
-console.log("🌸 YApp V15 loaded successfully.");
+console.log("🌸 YApp V16 REAL PARTNER FIX loaded successfully.");
 </script>
 
 
