@@ -1,4 +1,5 @@
-<!-- YAPP VERSION: V29 - PARTNER LABEL + OPPOSITE REMINDER LOGIC -->
+<!-- YAPP VERSION: V31 - INDIVIDUAL REMINDER CONTROLS -->
+<!-- YAPP VERSION: V30 STABLE - PARTNER LABEL + GIRLFRIEND REMINDER LOGIC -->
 <!-- YAPP VERSION: V28 - FULL MEAL REMINDERS + RING + MENU AI -->
 <!-- YAPP VERSION: V27 - DYNAMIC NUTRIENTS + MENU PHOTO RANKING -->
 <!-- YAPP VERSION: V26 SAFE SETTINGS - NULL-SAFE STARTUP -->
@@ -1180,35 +1181,53 @@ COUPLE
     <div class="settings-section">
       <h2>⏰ Meal reminders</h2>
 
+      <div class="settings-help" id="reminderRoleHelp" style="margin-bottom:10px">
+        Reminder controls follow your Tracker role.
+      </div>
+
       <div class="settings-row">
         <div>
-          <div class="settings-title" id="reminderRoleTitle">🌷 Girlfriend meal reminders</div>
-          <div class="settings-help" id="reminderRoleHelp">
-            The girlfriend controls the three meal times. Reminders stay ON.
-          </div>
+          <div class="settings-title">🌅 Breakfast</div>
+          <div class="settings-help" id="breakfastPermissionText">Loading...</div>
         </div>
-        <label class="toggle">
-          <input id="settingsReminderToggle" type="checkbox" checked onchange="toggleReminderFromSettings()">
-          <span class="slider"></span>
-        </label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input id="settingsBreakfast" type="time" value="08:00" style="width:120px">
+          <label class="toggle">
+            <input id="settingsBreakfastToggle" type="checkbox" checked onchange="toggleMealReminder('breakfast')">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
 
-      <div class="settings-help" style="margin:8px 0 4px">
-        Breakfast
+      <div class="settings-row">
+        <div>
+          <div class="settings-title">☀️ Lunch</div>
+          <div class="settings-help" id="lunchPermissionText">Loading...</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input id="settingsLunch" type="time" value="13:00" style="width:120px">
+          <label class="toggle">
+            <input id="settingsLunchToggle" type="checkbox" checked onchange="toggleMealReminder('lunch')">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
-      <input id="settingsBreakfast" type="time" value="08:00">
 
-      <div class="settings-help" style="margin:8px 0 4px">
-        Lunch
+      <div class="settings-row">
+        <div>
+          <div class="settings-title">🌙 Dinner</div>
+          <div class="settings-help" id="dinnerPermissionText">Loading...</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input id="settingsDinner" type="time" value="19:30" style="width:120px">
+          <label class="toggle">
+            <input id="settingsDinnerToggle" type="checkbox" checked onchange="toggleMealReminder('dinner')">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
-      <input id="settingsLunch" type="time" value="13:00">
 
-      <div class="settings-help" style="margin:8px 0 4px">
-        Dinner
-      </div>
-      <input id="settingsDinner" type="time" value="19:30">
-
-      <button class="btn" onclick="saveRemindersFromSettings()">
+      <button class="btn" onclick="saveMealReminderTimes()">
         SAVE MEAL TIMES
       </button>
 
@@ -2184,25 +2203,9 @@ function listenToPartnerMeals() {
 window.setTrackerRole = async function(role) {
   if (!currentProfile || !currentUser) return;
   if (role !== "boyfriend" && role !== "girlfriend") return;
-  /*
-   * Tracker is explicitly the PARTNER label.
-   */
   currentProfile.partnerRole = role;
-
   const label = document.getElementById("partnerTrackerLabel");
-  if (label) {
-    label.textContent =
-      role === "boyfriend"
-        ? "BOYFRIEND"
-        : "GIRLFRIEND";
-  }
-
-  const settingsTracker =
-    document.getElementById("settingsTrackerRole");
-
-  if (settingsTracker) {
-    settingsTracker.value = role;
-  }
+  if (label) label.textContent = role === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
 
   if (typeof loadSettingsReminderFields === "function") {
     loadSettingsReminderFields();
@@ -3302,63 +3305,110 @@ window.connectPartnerFromSettings=async function(){
   openSettings();
 };
 
+function getUserSexFromTracker() {
+  /*
+   * Tracker shows the PARTNER.
+   * Therefore:
+   *   Tracker = BOYFRIEND  -> current user is GIRLFRIEND
+   *   Tracker = GIRLFRIEND -> current user is BOYFRIEND
+   */
+  const partnerRole =
+    (currentProfile && currentProfile.partnerRole) ||
+    (currentProfile && currentProfile.role === "boyfriend"
+      ? "girlfriend"
+      : "boyfriend");
+
+  return partnerRole === "boyfriend"
+    ? "girlfriend"
+    : "boyfriend";
+}
+
 function getPartnerRoleFromTracker() {
   /*
-   * Tracker label describes THE OTHER PERSON.
-   * Therefore:
-   *   tracker = GIRLFRIEND -> current user is BOYFRIEND
-   *   tracker = BOYFRIEND  -> current user is GIRLFRIEND
+   * Tracker is always the PARTNER label.
+   *
+   * Tracker = GIRLFRIEND
+   *   -> partner is girlfriend
+   *   -> current user is boyfriend
+   *
+   * Tracker = BOYFRIEND
+   *   -> partner is boyfriend
+   *   -> current user is girlfriend
    */
   return (
-    currentProfile &&
-    currentProfile.partnerRole
+    currentProfile && currentProfile.partnerRole
   ) || (
-    currentProfile &&
-    currentProfile.role === "boyfriend"
+    currentProfile && currentProfile.role === "boyfriend"
       ? "girlfriend"
       : "boyfriend"
   );
 }
 
 function getCurrentUserRoleFromTracker() {
-  const partnerRole = getPartnerRoleFromTracker();
-  return partnerRole === "boyfriend"
+  return getPartnerRoleFromTracker() === "boyfriend"
     ? "girlfriend"
     : "boyfriend";
 }
 
-function getGirlfriendReminderState() {
+function getReminderState() {
   const reminders =
     (currentProfile && currentProfile.reminders) || {};
 
-  const oldEnabled =
-    reminders.enabled !== undefined
-      ? reminders.enabled
-      : true;
+  const girlfriend =
+    reminders.girlfriend || {};
 
-  return reminders.girlfriend || {
-    enabled: oldEnabled !== false,
-    breakfast: reminders.breakfast || "08:00",
-    lunch: reminders.lunch || "13:00",
-    dinner: reminders.dinner || "19:30"
+  return {
+    breakfast: {
+      enabled:
+        girlfriend.breakfastEnabled !== undefined
+          ? girlfriend.breakfastEnabled
+          : true,
+      time:
+        girlfriend.breakfast || "08:00"
+    },
+    lunch: {
+      enabled:
+        girlfriend.lunchEnabled !== undefined
+          ? girlfriend.lunchEnabled
+          : true,
+      time:
+        girlfriend.lunch || "13:00"
+    },
+    dinner: {
+      enabled:
+        girlfriend.dinnerEnabled !== undefined
+          ? girlfriend.dinnerEnabled
+          : true,
+      time:
+        girlfriend.dinner || "19:30"
+    }
   };
 }
 
-function renderGirlfriendReminderControls() {
-  const toggle =
-    document.getElementById("settingsReminderToggle");
+function currentUserCanControlMeal(meal) {
+  const role =
+    getCurrentUserRoleFromTracker();
 
-  const breakfast =
-    document.getElementById("settingsBreakfast");
+  /*
+   * GIRLFRIEND:
+   *   can toggle BREAKFAST only.
+   *   can set breakfast time only.
+   *
+   * BOYFRIEND:
+   *   can toggle all three.
+   *   can set all three times.
+   */
+  if (role === "girlfriend") {
+    return meal === "breakfast";
+  }
 
-  const lunch =
-    document.getElementById("settingsLunch");
+  return role === "boyfriend";
+}
 
-  const dinner =
-    document.getElementById("settingsDinner");
-
-  const title =
-    document.getElementById("reminderRoleTitle");
+function renderReminderControls() {
+  const state = getReminderState();
+  const currentRole =
+    getCurrentUserRoleFromTracker();
 
   const help =
     document.getElementById("reminderRoleHelp");
@@ -3366,109 +3416,133 @@ function renderGirlfriendReminderControls() {
   const note =
     document.getElementById("reminderLockNote");
 
-  if (!toggle || !breakfast || !lunch || !dinner) return;
-
-  /*
-   * Tracker is the PARTNER label.
-   *
-   * If Tracker says BOYFRIEND:
-   *   the current user is the GIRLFRIEND,
-   *   so she gets full reminder control.
-   *
-   * If Tracker says GIRLFRIEND:
-   *   the current user is the BOYFRIEND,
-   *   so the girlfriend's reminder is locked ON.
-   */
-  const partnerRole = getPartnerRoleFromTracker();
-  const currentUserRole = getCurrentUserRoleFromTracker();
-  const isGirlfriend = currentUserRole === "girlfriend";
-
-  const gfState =
-    getGirlfriendReminderState();
-
-  toggle.checked =
-    isGirlfriend
-      ? gfState.enabled !== false
-      : true;
-
-  toggle.disabled =
-    !isGirlfriend;
-
-  breakfast.disabled =
-    !isGirlfriend;
-
-  lunch.disabled =
-    !isGirlfriend;
-
-  dinner.disabled =
-    !isGirlfriend;
-
-  breakfast.value =
-    gfState.breakfast || "08:00";
-
-  lunch.value =
-    gfState.lunch || "13:00";
-
-  dinner.value =
-    gfState.dinner || "19:30";
-
-  if (title) {
-    title.textContent =
-      isGirlfriend
-        ? "🌷 Your meal reminders"
-        : "🌷 Girlfriend meal reminders";
-  }
-
   if (help) {
     help.textContent =
-      isGirlfriend
-        ? "Tracker says BOYFRIEND — that means you are the girlfriend. You control the reminder."
-        : "Tracker says GIRLFRIEND — that means you are the boyfriend. The girlfriend controls the reminder.";
+      currentRole === "girlfriend"
+        ? "Tracker says BOYFRIEND, so you are the girlfriend. You control breakfast only."
+        : "Tracker says GIRLFRIEND, so you are the boyfriend. You control breakfast, lunch and dinner.";
   }
+
+  const controls = [
+    {
+      meal: "breakfast",
+      timeId: "settingsBreakfast",
+      toggleId: "settingsBreakfastToggle",
+      textId: "breakfastPermissionText"
+    },
+    {
+      meal: "lunch",
+      timeId: "settingsLunch",
+      toggleId: "settingsLunchToggle",
+      textId: "lunchPermissionText"
+    },
+    {
+      meal: "dinner",
+      timeId: "settingsDinner",
+      toggleId: "settingsDinnerToggle",
+      textId: "dinnerPermissionText"
+    }
+  ];
+
+  controls.forEach(function(item) {
+    const timeEl =
+      document.getElementById(item.timeId);
+
+    const toggleEl =
+      document.getElementById(item.toggleId);
+
+    const textEl =
+      document.getElementById(item.textId);
+
+    const mealState =
+      state[item.meal];
+
+    const allowed =
+      currentUserCanControlMeal(item.meal);
+
+    if (timeEl) {
+      timeEl.value = mealState.time;
+      timeEl.disabled = !allowed;
+    }
+
+    if (toggleEl) {
+      toggleEl.checked = mealState.enabled;
+      toggleEl.disabled = !allowed;
+    }
+
+    if (textEl) {
+      textEl.textContent =
+        allowed
+          ? "You can change this reminder."
+          : "🔒 Locked for your role.";
+    }
+  });
 
   if (note) {
     note.textContent =
-      isGirlfriend
-        ? "You can set breakfast, lunch and dinner times and turn reminders ON/OFF."
-        : "🔒 Locked ON. Only the girlfriend can change the meal times or turn reminders OFF.";
+      currentRole === "girlfriend"
+        ? "Girlfriend: breakfast control only. Lunch and dinner are locked."
+        : "Boyfriend: full control of breakfast, lunch and dinner.";
   }
 
-  console.log(
-    "🌸 Reminder role:",
-    "partner label =", partnerRole,
-    "| current user =", currentUserRole,
-    "| girlfriend controls =", isGirlfriend
-  );
+  const status =
+    document.getElementById("reminderNotificationStatus");
+
+  if (status) {
+    if (!("Notification" in window)) {
+      status.textContent =
+        "Notifications are unavailable in this browser.";
+    } else if (Notification.permission === "granted") {
+      status.textContent =
+        "🔔 Notifications enabled.";
+    } else if (Notification.permission === "denied") {
+      status.textContent =
+        "🔕 Notifications blocked in browser/site settings.";
+    } else {
+      status.textContent =
+        "🔔 Tap ENABLE NOTIFICATIONS to allow reminders.";
+    }
+  }
 }
 
-window.toggleReminderFromSettings = async function() {
-  const toggle =
-    document.getElementById("settingsReminderToggle");
+window.toggleMealReminder = async function(meal) {
+  if (!["breakfast","lunch","dinner"].includes(meal)) return;
 
-  if (!toggle || !currentUser) return;
+  const allowed =
+    currentUserCanControlMeal(meal);
 
-  const currentUserRole =
-    getCurrentUserRoleFromTracker();
-
-  /*
-   * Only the girlfriend (identified by Tracker = BOYFRIEND)
-   * may change the reminder state.
-   */
-  if (currentUserRole !== "girlfriend") {
-    toggle.checked = true;
-    toggle.disabled = true;
-    showToast(
-      "🔒 Tracker says GIRLFRIEND, so you are the boyfriend. Only the girlfriend can turn reminders off."
+  const toggleEl =
+    document.getElementById(
+      "settings" +
+      meal.charAt(0).toUpperCase() +
+      meal.slice(1) +
+      "Toggle"
     );
+
+  if (!toggleEl) return;
+
+  if (!allowed) {
+    renderReminderControls();
+
+    showToast(
+      meal === "breakfast"
+        ? "🔒 Breakfast is the only reminder you can control."
+        : "🔒 This reminder is locked for your role."
+    );
+
     return;
   }
+
+  const field =
+    "reminders.girlfriend." +
+    meal +
+    "Enabled";
 
   try {
     await db.collection("users")
       .doc(currentUser.uid)
       .update({
-        "reminders.girlfriend.enabled":
-          toggle.checked
+        [field]: toggleEl.checked
       });
 
     if (!currentProfile.reminders) {
@@ -3479,61 +3553,105 @@ window.toggleReminderFromSettings = async function() {
       currentProfile.reminders.girlfriend = {};
     }
 
-    currentProfile.reminders.girlfriend.enabled =
-      toggle.checked;
+    currentProfile.reminders.girlfriend[
+      meal + "Enabled"
+    ] = toggleEl.checked;
 
-    showToast(
-      "Meal reminders " +
-      (toggle.checked ? "ON 🌸" : "OFF")
-    );
-
+    resetReminderFireState();
+    renderReminderControls();
     startReminderEngine();
 
+    showToast(
+      meal.charAt(0).toUpperCase() +
+      meal.slice(1) +
+      " reminder " +
+      (toggleEl.checked ? "ON 🌸" : "OFF")
+    );
+
   } catch (error) {
-    console.error("Reminder toggle error:", error);
-    showToast("Couldn't save reminder state.");
-    renderGirlfriendReminderControls();
+    console.error(
+      "Reminder toggle error:",
+      error
+    );
+
+    renderReminderControls();
+    showToast(
+      "Couldn't save reminder setting."
+    );
   }
 };
 
-window.saveRemindersFromSettings = async function() {
-  const breakfast =
-    document.getElementById("settingsBreakfast");
+window.saveMealReminderTimes = async function() {
+  const inputs = {
+    breakfast: document.getElementById("settingsBreakfast"),
+    lunch: document.getElementById("settingsLunch"),
+    dinner: document.getElementById("settingsDinner")
+  };
 
-  const lunch =
-    document.getElementById("settingsLunch");
+  const values = {
+    breakfast: inputs.breakfast ? inputs.breakfast.value : "08:00",
+    lunch: inputs.lunch ? inputs.lunch.value : "13:00",
+    dinner: inputs.dinner ? inputs.dinner.value : "19:30"
+  };
 
-  const dinner =
-    document.getElementById("settingsDinner");
-
-  if (!breakfast || !lunch || !dinner || !currentUser) {
-    return;
-  }
-
-  const currentUserRole =
+  const role =
     getCurrentUserRoleFromTracker();
 
   /*
-   * Only the GIRLFRIEND can set the times.
-   * Tracker = BOYFRIEND is how YApp identifies the current user
-   * as the girlfriend.
+   * Girlfriend can edit breakfast time only.
+   * Boyfriend can edit all three.
    */
-  if (currentUserRole !== "girlfriend") {
-    renderGirlfriendReminderControls();
-    showToast(
-      "🔒 Only the girlfriend can set the meal times."
-    );
+  if (role === "girlfriend") {
+    try {
+      await db.collection("users")
+        .doc(currentUser.uid)
+        .update({
+          "reminders.girlfriend.breakfast": values.breakfast
+        });
+
+      if (!currentProfile.reminders) {
+        currentProfile.reminders = {};
+      }
+
+      if (!currentProfile.reminders.girlfriend) {
+        currentProfile.reminders.girlfriend = {};
+      }
+
+      currentProfile.reminders.girlfriend.breakfast =
+        values.breakfast;
+
+      resetReminderFireState();
+      renderReminderControls();
+      startReminderEngine();
+
+      showToast(
+        "🌸 Breakfast time saved."
+      );
+
+    } catch (error) {
+      console.error(
+        "Breakfast time save error:",
+        error
+      );
+
+      showToast(
+        "Couldn't save breakfast time."
+      );
+    }
+
     return;
   }
 
+  /*
+   * Boyfriend: full schedule control.
+   */
   try {
     await db.collection("users")
       .doc(currentUser.uid)
       .update({
-        "reminders.girlfriend.enabled": true,
-        "reminders.girlfriend.breakfast": breakfast.value,
-        "reminders.girlfriend.lunch": lunch.value,
-        "reminders.girlfriend.dinner": dinner.value
+        "reminders.girlfriend.breakfast": values.breakfast,
+        "reminders.girlfriend.lunch": values.lunch,
+        "reminders.girlfriend.dinner": values.dinner
       });
 
     if (!currentProfile.reminders) {
@@ -3541,50 +3659,71 @@ window.saveRemindersFromSettings = async function() {
     }
 
     currentProfile.reminders.girlfriend = {
-      enabled: true,
-      breakfast: breakfast.value,
-      lunch: lunch.value,
-      dinner: dinner.value
+      ...(currentProfile.reminders.girlfriend || {}),
+      breakfast: values.breakfast,
+      lunch: values.lunch,
+      dinner: values.dinner
     };
 
     resetReminderFireState();
-    renderGirlfriendReminderControls();
+    renderReminderControls();
     startReminderEngine();
 
     showToast(
-      "🌸 Breakfast, lunch and dinner saved. Reminders are ON."
+      "🌸 All meal times saved."
     );
 
   } catch (error) {
-    console.error("Meal reminder save error:", error);
-    showToast("Couldn't save meal times.");
+    console.error(
+      "Meal time save error:",
+      error
+    );
+
+    showToast(
+      "Couldn't save meal times."
+    );
   }
 };
 
-function getEffectiveReminderSchedule() {
-  const gfState =
-    getGirlfriendReminderState();
+function loadSettingsReminderFields() {
+  renderReminderControls();
+  startReminderEngine();
+}
 
-  const currentUserRole =
+function getEffectiveReminderSchedule() {
+  const state =
+    getReminderState();
+
+  const role =
     getCurrentUserRoleFromTracker();
 
   /*
-   * Girlfriend:
-   * use her actual ON/OFF choice.
+   * Each person's UI gets the same shared schedule,
+   * but controls differ by role.
    *
-   * Boyfriend:
-   * the girlfriend's reminder remains ON.
+   * Girlfriend can switch breakfast OFF, but lunch/dinner
+   * remain effective ON because she cannot toggle them.
+   *
+   * Boyfriend can switch any meal independently.
    */
-  const enabled =
-    currentUserRole === "girlfriend"
-      ? gfState.enabled !== false
-      : true;
-
   return {
-    enabled,
-    breakfast: gfState.breakfast || "08:00",
-    lunch: gfState.lunch || "13:00",
-    dinner: gfState.dinner || "19:30"
+    breakfast: {
+      time: state.breakfast.time,
+      enabled:
+        role === "girlfriend"
+          ? state.breakfast.enabled !== false
+          : state.breakfast.enabled !== false
+    },
+    lunch: {
+      time: state.lunch.time,
+      enabled:
+        state.lunch.enabled !== false
+    },
+    dinner: {
+      time: state.dinner.time,
+      enabled:
+        state.dinner.enabled !== false
+    }
   };
 }
 
@@ -3869,7 +4008,7 @@ function loadReminders() {
     dinner.value = reminders.dinner || "19:30";
   }
 }
-console.log("🌸 YApp V29 PARTNER LABEL + REMINDER LOGIC loaded successfully.");
+console.log("🌸 YApp V31 INDIVIDUAL REMINDER CONTROLS loaded successfully.");
 
 document.addEventListener("DOMContentLoaded", function() {
   const input =
