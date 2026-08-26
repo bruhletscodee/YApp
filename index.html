@@ -1,4 +1,4 @@
-<!-- YAPP VERSION: V34 - BETTER DIAGONAL CHERRY BRANCH -->
+<!-- YAPP VERSION: V40 - INSTALLABLE PWA -->
 <!-- YAPP VERSION: V33 - PETALS DETACH FROM CHERRY BLOSSOM BRANCH -->
 <!-- YAPP VERSION: V32 - CHERRY BRANCH CANOPY + PETAL FALL -->
 <!-- YAPP VERSION: V31 - INDIVIDUAL REMINDER CONTROLS -->
@@ -456,29 +456,6 @@ textarea:focus{
 
 
 
-.cherry-branch-layer{
-  position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:155px;
-  pointer-events:none;
-  overflow:hidden;
-  z-index:8;
-}
-
-.cherry-branch{
-  position:absolute;
-  left:50%;
-  top:-2px;
-  width:100%;
-  height:170px;
-  transform:translateX(-50%);
-  object-fit:contain;
-  object-position:center top;
-  filter:drop-shadow(0 2px 3px rgba(95,40,55,.10));
-}
-
 /*
  * Falling petals are born ON the branch, close to visible blossoms,
  * then gently detach and drift down. They do not spawn randomly
@@ -686,19 +663,16 @@ textarea:focus{
   font-size:11px;
 }
 ''</style>
+
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#d45d8b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="./icon-180.png">
 </head>
 
 <body>
-
-
-<!-- Cherry blossom branch canopy -->
-<div class="cherry-branch-layer" id="cherryBranchLayer" aria-hidden="true">
-  <img
-    class="cherry-branch"
-    alt=""
-    src="https://www.toppng.com/png/detail/82-820606_0-transparent-cherry-blossom-branch.png">
-</div>
-
 <!-- Petals are spawned around the branch and fall downward -->
 <div class="petal-fall-layer" id="petalLayer" aria-hidden="true"></div>
 
@@ -1331,6 +1305,17 @@ COUPLE
 
       <div id="reminderLockNote" class="settings-help" style="margin-top:10px"></div>
       <div id="reminderNotificationStatus" class="settings-help" style="margin-top:6px"></div>
+    </div>
+
+    <div class="settings-section">
+      <h2>📱 Install YApp</h2>
+      <div class="settings-help" style="margin-bottom:10px">
+        Install YApp on your Home Screen for an app-like experience.
+      </div>
+      <button id="installPwaButton" class="btn" onclick="installYAppPWA()">
+        📲 INSTALL YAPP
+      </button>
+      <div id="installPwaHelp" class="settings-help" style="margin-top:8px"></div>
     </div>
 
     <div class="settings-section">
@@ -4332,7 +4317,7 @@ function loadReminders() {
     dinner.value = reminders.dinner || "19:30";
   }
 }
-console.log("🌸 YApp V34 BETTER DIAGONAL BRANCH loaded successfully.");
+console.log("🌸 YApp V40 INSTALLABLE PWA loaded successfully.");
 
 document.addEventListener("DOMContentLoaded", function() {
   const input =
@@ -4385,6 +4370,120 @@ window.addEventListener("resize", function() {
     loadSettingsEffects();
   }
 });
+
+/* =========================================================
+   YAPP PWA
+========================================================= */
+
+let deferredPwaInstallPrompt = null;
+
+window.installYAppPWA = async function() {
+  if (deferredPwaInstallPrompt) {
+    deferredPwaInstallPrompt.prompt();
+
+    try {
+      await deferredPwaInstallPrompt.userChoice;
+    } catch (error) {
+      console.warn("PWA install choice:", error);
+    }
+
+    deferredPwaInstallPrompt = null;
+
+    const btn =
+      document.getElementById("installPwaButton");
+
+    if (btn) {
+      btn.style.display = "none";
+    }
+
+    return;
+  }
+
+  const help =
+    document.getElementById("installPwaHelp");
+
+  if (help) {
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      help.textContent =
+        "✅ YApp is already installed as an app.";
+    } else if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      help.textContent =
+        "On iPhone/iPad: open YApp in Safari → Share → Add to Home Screen → Open as Web App.";
+    } else {
+      help.textContent =
+        "Open your browser's menu and choose Install YApp or Add to Home Screen.";
+    }
+  }
+};
+
+window.addEventListener("beforeinstallprompt", function(event) {
+  event.preventDefault();
+  deferredPwaInstallPrompt = event;
+
+  const btn =
+    document.getElementById("installPwaButton");
+
+  if (btn) {
+    btn.style.display = "block";
+  }
+});
+
+window.addEventListener("appinstalled", function() {
+  const btn =
+    document.getElementById("installPwaButton");
+
+  if (btn) {
+    btn.style.display = "none";
+  }
+
+  const help =
+    document.getElementById("installPwaHelp");
+
+  if (help) {
+    help.textContent =
+      "✅ YApp installed successfully.";
+  }
+
+  console.log("🌸 YApp PWA installed.");
+});
+
+async function registerYAppServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    console.warn("🌸 Service workers are not supported.");
+    return;
+  }
+
+  try {
+    const registration =
+      await navigator.serviceWorker.register(
+        "./sw.js",
+        { scope: "./" }
+      );
+
+    console.log(
+      "🌸 YApp service worker registered:",
+      registration.scope
+    );
+
+    /*
+     * Ask an updated worker to take control quickly.
+     */
+    if (registration.waiting) {
+      registration.waiting.postMessage({
+        type: "SKIP_WAITING"
+      });
+    }
+
+  } catch (error) {
+    console.error(
+      "🌸 YApp service worker registration failed:",
+      error
+    );
+  }
+}
+
+window.addEventListener("load", registerYAppServiceWorker);
+
 </script>
 
 
