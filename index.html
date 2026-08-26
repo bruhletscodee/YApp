@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V17 COMPLETE PARTNER SYNC -->
 <!-- YAPP VERSION: V16 REAL PARTNER FIX - COUPLE SOURCE OF TRUTH -->
 <!-- YAPP VERSION: V16 REAL PARTNER FIX - COUPLE SOURCE OF TRUTH -->
 <!-- YAPP VERSION: V15 REAL CORRECTED - PARTNER TODAY CALORIE SYNC -->
@@ -1619,89 +1620,125 @@ function listenToPartnerMeals() {
   }
 
   if (!currentProfile || !currentProfile.coupleId || !currentUser) {
-    console.warn("Partner listener waiting for coupleId/currentUser.");
+    console.warn("🌸 V17 partner listener waiting for couple/current user.");
     return;
   }
 
-  /*
-   * V16 REAL FIX:
-   *
-   * Do NOT rely on partnerId when finding the partner's meals.
-   * The couple document is the source of truth and contains exactly
-   * the two members. We listen to ALL food logs for this couple and
-   * identify the partner as "the other UID".
-   *
-   * This fixes old/stale partnerId values and guarantees that the
-   * person whose food belongs to this couple is the person displayed.
-   */
   const coupleId = currentProfile.coupleId;
   const myUid = currentUser.uid;
 
-  const q = db.collection("foodLogs")
-    .where("coupleId", "==", coupleId);
-
-  unsubscribePartner = q.onSnapshot(
-    function(snapshot) {
-      const allCoupleMeals = [];
-      const partnerMeals = [];
-
-      snapshot.forEach(function(item) {
-        const data = item.data() || {};
-        const meal = {
-          id: item.id,
-          ...data
-        };
-
-        allCoupleMeals.push(meal);
-
-        /* Anything in this couple that isn't MY UID is partner food. */
-        if (data.userId && data.userId !== myUid) {
-          partnerMeals.push(meal);
-        }
-      });
-
-      /*
-       * If there is partner food, use the actual UID found in the
-       * food logs as the partner UID. This prevents a stale partnerId
-       * from pointing at the wrong person.
-       */
-      const partnerIds = [...new Set(
-        partnerMeals
-          .map(m => m.userId)
-          .filter(Boolean)
-      )];
-
-      if (partnerIds.length > 0) {
-        currentProfile.partnerId = partnerIds[0];
+  /*
+   * V17: the couple document is the source of truth.
+   * We do NOT trust a stale partnerId stored in a user profile.
+   */
+  db.collection("couples").doc(coupleId).get()
+    .then(function(coupleSnap) {
+      if (!coupleSnap.exists) {
+        console.warn("🌸 V17: couple document not found:", coupleId);
+        return;
       }
 
+      const couple = coupleSnap.data() || {};
+      const members = Array.isArray(couple.members)
+        ? couple.members.filter(Boolean)
+        : [];
+
+      const partnerUid = members.find(function(uid) {
+        return uid !== myUid;
+      }) || null;
+
+      if (!partnerUid) {
+        console.log("🌸 V17: waiting for second member.");
+        return;
+      }
+
+      currentProfile.partnerId = partnerUid;
+
       console.log(
-        "🌸 V16 PARTNER SYNC:",
-        partnerMeals.length,
-        "partner meal(s)",
-        "| couple:",
-        coupleId,
-        "| me:",
-        myUid,
-        "| partner:",
-        currentProfile.partnerId || "not found",
-        "| all couple meals:",
-        allCoupleMeals.length
+        "🌸 V17 MEMBERS:",
+        "me =", myUid,
+        "| partner =", partnerUid,
+        "| couple =", coupleId
       );
 
-      window.__partnerMeals = partnerMeals.slice();
+      /*
+       * One simple Firestore query. No composite index required.
+       */
+      const q = db.collection("foodLogs")
+        .where("coupleId", "==", coupleId);
 
-      /* Recalculate and redraw immediately on every Firestore snapshot. */
-      renderPartnerMeals(partnerMeals);
-    },
-    function(error) {
-      console.error("V16 Partner realtime listener:", error);
+      unsubscribePartner = q.onSnapshot(
+        function(snapshot) {
+          const myMeals = [];
+          const partnerMeals = [];
+          const unknownMeals = [];
+
+          snapshot.forEach(function(item) {
+            const data = item.data() || {};
+            const meal = {
+              id: item.id,
+              ...data
+            };
+
+            if (data.userId === myUid) {
+              myMeals.push(meal);
+            } else if (data.userId === partnerUid) {
+              partnerMeals.push(meal);
+            } else {
+              unknownMeals.push(meal);
+            }
+          });
+
+          console.log(
+            "🌸 V17 COUPLE FOOD:",
+            "you:", myMeals.length,
+            "| partner:", partnerMeals.length,
+            "| unknown:", unknownMeals.length,
+            "| total:", snapshot.size
+          );
+
+          currentProfile.partnerId = partnerUid;
+          window.__partnerMeals = partnerMeals.slice();
+
+          /*
+           * This is the only collection used to calculate the partner
+           * card. Every Firestore snapshot redraws it immediately.
+           */
+          renderPartnerMeals(partnerMeals);
+
+          const connectedBar =
+            document.getElementById("connectedBar");
+          const coupleCard =
+            document.getElementById("coupleCard");
+          const status =
+            document.getElementById("partnerStatus");
+
+          if (connectedBar) connectedBar.style.display = "block";
+          if (coupleCard) coupleCard.style.display = "none";
+
+          if (status) {
+            status.textContent =
+              currentProfile.partnerName
+                ? "❤️ Connected to " + currentProfile.partnerName
+                : "❤️ Connected";
+          }
+        },
+        function(error) {
+          console.error("🌸 V17 partner food listener:", error);
+          showToast(
+            "Could not sync partner food: " +
+            (error.code || error.message)
+          );
+        }
+      );
+    })
+    .catch(function(error) {
+      console.error("🌸 V17 couple read error:", error);
       showToast(
-        "Could not sync partner food: " +
+        "Could not load couple: " +
         (error.code || error.message)
       );
-    }
-  );
+    });
 }
 
 
@@ -2113,6 +2150,7 @@ Do NOT return markdown.
       await db.collection("foodLogs").add({
         userId: currentUser.uid,
         coupleId: activeCoupleId,
+        syncVersion: "V17",
         food: `${food.quantity} ${food.unit} ${food.name}`,
         calories: Number(food.calories) || 0,
         protein: Number(food.protein_g) || 0,
@@ -2302,7 +2340,7 @@ function loadReminders() {
     reminders.dinner || "19:30";
 }
 
-console.log("🌸 YApp V16 REAL PARTNER FIX loaded successfully.");
+console.log("🌸 YApp V17 COMPLETE PARTNER SYNC loaded successfully.");
 </script>
 
 
