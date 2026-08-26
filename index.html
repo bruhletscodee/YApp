@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V24 CONNECT CODE FIX -->
 <!-- YAPP VERSION: V23 - GIRLFRIEND ONLY REMINDER TOGGLE -->
 <!-- YAPP VERSION: V22 ROLE-BASED BREAKFAST REMINDER + FAST FLASH-LITE AI -->
 <!-- YAPP VERSION: V21 SETTINGS + EFFECT CONTROLS -->
@@ -1410,10 +1411,21 @@ async function refreshDisplayedCoupleCode() {
     if (!snap.exists) return;
 
     const data = snap.data() || {};
-    const humanCode = data.code || currentProfile.coupleCode || "------";
+    const humanCode =
+      data.code ||
+      currentProfile.coupleCode ||
+      "------";
 
-    const codeEl = document.getElementById("myCode");
+    currentProfile.coupleCode = humanCode;
+
+    const codeEl =
+      document.getElementById("myCode");
     if (codeEl) codeEl.textContent = humanCode;
+
+    const settingsCode =
+      document.getElementById("settingsMyCode");
+    if (settingsCode) settingsCode.textContent = humanCode;
+
   } catch (error) {
     console.warn("Could not refresh couple code:", error);
   }
@@ -1506,100 +1518,111 @@ function canonicalCoupleId(uidA, uidB) {
 async function normalizeCurrentCouple() {
   if (!currentUser || !currentProfile || !db) return null;
 
-  const currentCoupleId = currentProfile.coupleId || null;
+  const legacyCoupleId = currentProfile.coupleId || null;
+  if (!legacyCoupleId) return null;
 
   try {
+    const legacySnap = await db.collection("couples")
+      .doc(legacyCoupleId)
+      .get();
+
+    if (!legacySnap.exists) return legacyCoupleId;
+
+    const legacy = legacySnap.data() || {};
+    const members = Array.isArray(legacy.members)
+      ? legacy.members.filter(Boolean)
+      : [];
+
+    const partnerId =
+      members.find(uid => uid !== currentUser.uid) || null;
+
+    if (!partnerId) {
+      currentProfile.coupleCode =
+        legacy.code || currentProfile.coupleCode || null;
+      return legacyCoupleId;
+    }
+
+    const canonicalId =
+      canonicalCoupleId(currentUser.uid, partnerId);
+
+    if (!canonicalId) return legacyCoupleId;
+
+    const canonicalRef =
+      db.collection("couples").doc(canonicalId);
+
+    const canonicalSnap =
+      await canonicalRef.get();
+
+    let humanCode =
+      canonicalSnap.exists
+        ? ((canonicalSnap.data() || {}).code || null)
+        : null;
+
     /*
-     * Find the other member from the couple document currently stored
-     * on this account. This works even when the two phones currently
-     * have different legacy couple IDs.
+     * Preserve the code already given to the couple whenever possible.
      */
-    if (currentCoupleId) {
-      const snap = await db.collection("couples")
-        .doc(currentCoupleId)
-        .get();
+    if (!humanCode) {
+      humanCode =
+        legacy.code ||
+        currentProfile.coupleCode ||
+        generateHumanCoupleCode();
+    }
 
-      if (snap.exists) {
-        const data = snap.data() || {};
-        const members = Array.isArray(data.members)
-          ? data.members.filter(Boolean)
-          : [];
+    if (!canonicalSnap.exists) {
+      try {
+        await canonicalRef.set({
+          code: humanCode,
+          internalId: canonicalId,
+          members: [currentUser.uid, partnerId],
+          createdBy: currentUser.uid,
+          migratedFrom: legacyCoupleId,
+          createdAt: new Date().toISOString()
+        });
+      } catch (error) {
+        console.warn(
+          "V24 canonical create blocked; staying on legacy couple:",
+          error
+        );
 
-        const partnerId =
-          members.find(uid => uid !== currentUser.uid) || null;
-
-        if (partnerId) {
-          const canonicalId =
-            canonicalCoupleId(currentUser.uid, partnerId);
-
-          if (canonicalId) {
-            currentProfile.coupleId = canonicalId;
-            currentProfile.partnerId = partnerId;
-
-            /*
-             * Save the canonical ID to THIS user's profile.
-             * We never modify the partner's profile from this device.
-             */
-            await db.collection("users")
-              .doc(currentUser.uid)
-              .update({
-                coupleId: canonicalId,
-                partnerId: partnerId
-              });
-
-            /*
-             * Create/merge the canonical couple document.
-             * Existing legacy documents remain untouched.
-             */
-            const canonicalRef =
-              db.collection("couples").doc(canonicalId);
-
-            const canonicalSnap = await canonicalRef.get();
-
-            if (!canonicalSnap.exists) {
-              await canonicalRef.set({
-                code: canonicalId,
-                members: [currentUser.uid, partnerId],
-                createdBy: currentUser.uid,
-                migratedFrom: currentCoupleId,
-                createdAt: new Date().toISOString()
-              });
-            } else {
-              const canonicalData = canonicalSnap.data() || {};
-              const canonicalMembers =
-                Array.isArray(canonicalData.members)
-                  ? canonicalData.members
-                  : [];
-
-              const merged = [...new Set([
-                ...canonicalMembers,
-                currentUser.uid,
-                partnerId
-              ])];
-
-              await canonicalRef.update({
-                members: merged,
-                internalId: canonicalId
-              });
-            }
-
-            console.log(
-              "🌸 V18 canonical couple:",
-              canonicalId,
-              "| old:",
-              currentCoupleId
-            );
-
-            return canonicalId;
-          }
-        }
+        currentProfile.coupleId = legacyCoupleId;
+        currentProfile.partnerId = partnerId;
+        currentProfile.coupleCode = humanCode;
+        return legacyCoupleId;
       }
     }
-  } catch (error) {
-    console.error("V18 normalizeCurrentCouple error:", error);
-  }
 
-  return currentProfile.coupleId || null;
+    currentProfile.coupleId = canonicalId;
+    currentProfile.partnerId = partnerId;
+    currentProfile.coupleCode = humanCode;
+
+    try {
+      await db.collection("users")
+        .doc(currentUser.uid)
+        .update({
+          coupleId: canonicalId,
+          partnerId: partnerId,
+          coupleCode: humanCode
+        });
+    } catch (error) {
+      console.warn(
+        "V24 optional profile update blocked:",
+        error
+      );
+    }
+
+    console.log(
+      "🌸 V24 canonical couple:",
+      canonicalId,
+      "| human code:",
+      humanCode
+    );
+
+    return canonicalId;
+
+  } catch (error) {
+    console.error("V24 normalizeCurrentCouple error:", error);
+    return currentProfile.coupleId || null;
+  }
 }
 
 async function migrateOwnFoodLogsToCouple() {
@@ -2377,30 +2400,34 @@ Keep the response compact.
    Couple connection
 ------------------------- */
 window.connectPartner = async function() {
-  const code =
-    document.getElementById("coupleCode").value.trim().toUpperCase();
+  const input =
+    document.getElementById("settingsCoupleCode") ||
+    document.getElementById("coupleCode");
+
+  const code = input
+    ? input.value.trim().toUpperCase()
+    : "";
 
   if (!code) {
     showToast("Enter your partner's 6-character code.");
     return;
   }
 
-  if (!currentUser) {
+  if (!currentUser || !db) {
     showToast("Please log in first.");
     return;
   }
 
   try {
-    /*
-     * Human code lookup. We do NOT expose the long UID-based internal ID.
-     */
+    console.log("🌸 V24 connecting with human code:", code);
+
     const snap = await db.collection("couples")
       .where("code", "==", code)
       .limit(1)
       .get();
 
     if (snap.empty) {
-      showToast("Couple code not found.");
+      showToast("Couple code not found. Check the code in Settings.");
       return;
     }
 
@@ -2413,11 +2440,16 @@ window.connectPartner = async function() {
       : [];
 
     if (members.includes(currentUser.uid)) {
+      currentProfile.coupleId = coupleRef.id;
+      currentProfile.coupleCode = couple.code || code;
+
       await normalizeCurrentCouple();
       await refreshDisplayedCoupleCode();
       await migrateOwnFoodLogsToCouple();
       await resolvePartnerFromCouple();
       listenToCoupleChanges();
+
+      if (input) input.value = "";
       showToast("Already connected ❤️");
       return;
     }
@@ -2428,42 +2460,64 @@ window.connectPartner = async function() {
     }
 
     const partnerId = members[0];
-
     if (!partnerId) {
       showToast("This couple is not ready yet.");
       return;
     }
 
+    /*
+     * Join the couple document using the human code.
+     */
     await coupleRef.update({
       members: [...members, currentUser.uid]
     });
 
-    await db.collection("users")
-      .doc(currentUser.uid)
-      .update({
-        coupleId: coupleRef.id,
-        partnerId: partnerId
-      });
-
     currentProfile.coupleId = coupleRef.id;
     currentProfile.partnerId = partnerId;
+    currentProfile.coupleCode = couple.code || code;
 
+    /*
+     * Optional profile write: do not let this optional step hide a
+     * successful couple join.
+     */
+    try {
+      await db.collection("users").doc(currentUser.uid).update({
+        coupleId: coupleRef.id,
+        partnerId: partnerId,
+        coupleCode: currentProfile.coupleCode
+      });
+    } catch (error) {
+      console.warn("V24 profile update skipped:", error);
+    }
+
+    /*
+     * Convert the internal ID to the stable pair ID while preserving
+     * the short human code.
+     */
     await normalizeCurrentCouple();
     await refreshDisplayedCoupleCode();
     await migrateOwnFoodLogsToCouple();
 
-    document.getElementById("coupleCode").value = "";
+    if (input) input.value = "";
 
     await resolvePartnerFromCouple();
     listenToCoupleChanges();
 
     showToast("❤️ Partner connected!");
+
   } catch (error) {
-    console.error("V19 connect partner error:", error);
-    showToast(
-      "Firebase error: " +
-      (error.code || error.message)
-    );
+    console.error("V24 connect partner error:", error);
+
+    if (error && error.code === "permission-denied") {
+      showToast(
+        "Firebase blocked the connection. Check your couples Firestore rule."
+      );
+    } else {
+      showToast(
+        "Firebase error: " +
+        (error.code || error.message)
+      );
+    }
   }
 };
 
@@ -2548,11 +2602,8 @@ window.copyCoupleCode=async function(){
 
 window.connectPartnerFromSettings=async function(){
   const input=document.getElementById("settingsCoupleCode");
-  const mainInput=document.getElementById("coupleCode");
-  if(!input || !mainInput) return;
-  mainInput.value=input.value.trim().toUpperCase();
+  if(!input) return;
   await window.connectPartner();
-  input.value="";
   openSettings();
 };
 
@@ -2796,7 +2847,7 @@ function loadReminders() {
     reminders.dinner || "19:30";
 }
 
-console.log("🌸 YApp V23 GIRLFRIEND REMINDER RULE loaded successfully.");
+console.log("🌸 YApp V24 CONNECT CODE FIX loaded successfully.");
 </script>
 
 
