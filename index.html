@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V50 - SHARED TEXT COUPLE RESOLUTION FIX -->
 <!-- YAPP VERSION: V49 - MENU AI JSON ROBUST FIX -->
 <!-- YAPP VERSION: V48 - REMINDERS FULLY FIXED -->
 <!-- YAPP VERSION: V47 - SHARED TEXT FIRESTORE COMPAT SYNC FIX -->
@@ -4955,186 +4956,362 @@ function stopSharedTextSync() {
   }
 }
 
+async function resolveSharedTextCoupleId() {
+  if (!currentUser || !db || !currentProfile) {
+    return null;
+  }
+
+  /*
+   * First try the ID already stored on the profile.
+   */
+  let coupleId =
+    currentProfile.coupleId || null;
+
+  if (coupleId) {
+    try {
+      const snap =
+        await db.collection("couples")
+          .doc(coupleId)
+          .get();
+
+      if (snap.exists) {
+        return coupleId;
+      }
+    } catch (error) {
+      console.warn(
+        "V50 couple ID check:",
+        error
+      );
+    }
+  }
+
+  /*
+   * The profile may have an old/internal ID while the human couple
+   * code still points to the real couple document.
+   */
+  const humanCode =
+    (
+      currentProfile.coupleCode ||
+      currentProfile.code ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if (humanCode) {
+    try {
+      const querySnap =
+        await db.collection("couples")
+          .where("code", "==", humanCode)
+          .limit(1)
+          .get();
+
+      if (!querySnap.empty) {
+        const realDoc =
+          querySnap.docs[0];
+
+        coupleId =
+          realDoc.id;
+
+        currentProfile.coupleId =
+          coupleId;
+
+        const data =
+          realDoc.data() || {};
+
+        const members =
+          Array.isArray(data.members)
+            ? data.members.filter(Boolean)
+            : [];
+
+        const partnerId =
+          members.find(
+            function(uid) {
+              return uid !== currentUser.uid;
+            }
+          ) || null;
+
+        if (partnerId) {
+          currentProfile.partnerId =
+            partnerId;
+        }
+
+        /*
+         * Keep the local profile in sync. This is best-effort.
+         */
+        try {
+          await db.collection("users")
+            .doc(currentUser.uid)
+            .update({
+              coupleId: coupleId,
+              partnerId:
+                currentProfile.partnerId || null,
+              coupleCode:
+                data.code || humanCode
+            });
+        } catch (error) {
+          console.warn(
+            "V50 profile couple repair skipped:",
+            error
+          );
+        }
+
+        console.log(
+          "🌸 V50 resolved shared-text couple:",
+          coupleId
+        );
+
+        return coupleId;
+      }
+    } catch (error) {
+      console.error(
+        "V50 human couple-code lookup:",
+        error
+      );
+    }
+  }
+
+  /*
+   * Last attempt: use the existing canonical normalization.
+   */
+  try {
+    const normalized =
+      await normalizeCurrentCouple();
+
+    if (normalized) {
+      const snap =
+        await db.collection("couples")
+          .doc(normalized)
+          .get();
+
+      if (snap.exists) {
+        return normalized;
+      }
+    }
+  } catch (error) {
+    console.warn(
+      "V50 normalize couple fallback:",
+      error
+    );
+  }
+
+  return null;
+}
+
 function startSharedTextSync() {
   stopSharedTextSync();
 
   const box =
-    document.getElementById("sharedCoupleText");
+    document.getElementById(
+      "sharedCoupleText"
+    );
 
   if (!box) {
     console.warn(
-      "V47 shared text box not found."
+      "V50 shared text box not found."
     );
     return;
   }
 
-  const coupleId =
-    getSharedCoupleId();
+  /*
+   * Resolve the real couple document BEFORE attaching onSnapshot.
+   * This prevents the "Couple record not found" message caused by an
+   * old/stale coupleId.
+   */
+  resolveSharedTextCoupleId()
+    .then(function(coupleId) {
+      if (
+        !coupleId ||
+        !currentUser ||
+        !db
+      ) {
+        renderSharedText(
+          "",
+          "🔗 Connect with your partner to sync this space."
+        );
+        return;
+      }
 
-  if (!currentUser || !db || !coupleId) {
-    renderSharedText(
-      "",
-      "🔗 Connect with your partner to sync this space."
-    );
-    return;
-  }
+      const coupleRef =
+        db.collection("couples")
+          .doc(coupleId);
 
-  const coupleRef =
-    db.collection("couples")
-      .doc(coupleId);
+      sharedTextUnsubscribe =
+        coupleRef.onSnapshot(
+          function(snapshot) {
+            if (!snapshot.exists) {
+              /*
+               * Do one final profile/code resolution rather than leaving
+               * the user stuck on "Couple record not found."
+               */
+              resolveSharedTextCoupleId()
+                .then(function(retryId) {
+                  if (
+                    retryId &&
+                    retryId !== coupleId
+                  ) {
+                    startSharedTextSync();
+                  } else {
+                    renderSharedText(
+                      "",
+                      "⚠️ Couple record not found."
+                    );
+                  }
+                });
 
-  sharedTextUnsubscribe =
-    coupleRef.onSnapshot(
-      function(snapshot) {
-        if (!snapshot.exists) {
-          renderSharedText(
-            "",
-            "⚠️ Couple record not found."
-          );
-          return;
-        }
+              return;
+            }
 
-        const data =
-          snapshot.data() || {};
+            const data =
+              snapshot.data() || {};
 
-        const value =
-          typeof data.sharedText === "string"
-            ? data.sharedText
-            : "";
+            const value =
+              typeof data.sharedText === "string"
+                ? data.sharedText
+                : "";
 
-        /*
-         * Only replace the input when the user is NOT actively
-         * typing. This prevents their local text from jumping around.
-         */
-        if (
-          document.activeElement !== box
-        ) {
-          box.value = value;
-        }
+            if (
+              document.activeElement !== box
+            ) {
+              box.value =
+                value;
+            }
 
-        sharedTextLastLocalValue =
-          value;
+            sharedTextLastLocalValue =
+              value;
 
-        const state =
-          document.getElementById(
-            "sharedTextStatus"
-          );
+            const state =
+              document.getElementById(
+                "sharedTextStatus"
+              );
 
-        if (state) {
-          state.textContent =
-            "✓ Synced with your partner";
-        }
-      },
-      function(error) {
-        console.error(
-          "V47 shared text realtime error:",
-          error
+            if (state) {
+              state.textContent =
+                "✓ Synced with your partner";
+            }
+          },
+          function(error) {
+            console.error(
+              "V50 shared text realtime error:",
+              error
+            );
+
+            const state =
+              document.getElementById(
+                "sharedTextStatus"
+              );
+
+            if (state) {
+              state.textContent =
+                error &&
+                error.code === "permission-denied"
+                  ? "⚠️ Firebase permission denied"
+                  : "⚠️ Shared text sync failed";
+            }
+          }
         );
 
-        const state =
-          document.getElementById(
-            "sharedTextStatus"
-          );
+      if (
+        !box.dataset.sharedTextBound
+      ) {
+        box.dataset.sharedTextBound =
+          "true";
 
-        if (state) {
-          state.textContent =
-            error &&
-            error.code === "permission-denied"
-              ? "⚠️ Firebase permission denied"
-              : "⚠️ Shared text sync failed";
-        }
-      }
-    );
+        box.addEventListener(
+          "input",
+          function() {
+            clearTimeout(
+              sharedTextSaveTimer
+            );
 
-  if (!box.dataset.sharedTextBound) {
-    box.dataset.sharedTextBound = "true";
+            const state =
+              document.getElementById(
+                "sharedTextStatus"
+              );
 
-    box.addEventListener(
-      "input",
-      function() {
-        clearTimeout(
-          sharedTextSaveTimer
+            if (state) {
+              state.textContent =
+                "Saving…";
+            }
+
+            const text =
+              box.value;
+
+            sharedTextSaveTimer =
+              setTimeout(
+                async function() {
+                  const activeCoupleId =
+                    await resolveSharedTextCoupleId();
+
+                  if (
+                    !currentUser ||
+                    !db ||
+                    !activeCoupleId
+                  ) {
+                    if (state) {
+                      state.textContent =
+                        "🔗 Connect with your partner first.";
+                    }
+                    return;
+                  }
+
+                  try {
+                    await db
+                      .collection("couples")
+                      .doc(activeCoupleId)
+                      .update({
+                        sharedText: text,
+                        sharedTextUpdatedAt:
+                          new Date().toISOString(),
+                        sharedTextUpdatedBy:
+                          currentUser.uid
+                      });
+
+                    sharedTextLastLocalValue =
+                      text;
+
+                    if (state) {
+                      state.textContent =
+                        "✓ Synced with your partner";
+                    }
+                  } catch (error) {
+                    console.error(
+                      "V50 shared text save error:",
+                      error
+                    );
+
+                    if (state) {
+                      state.textContent =
+                        error &&
+                        error.code ===
+                          "permission-denied"
+                          ? "⚠️ Firebase permission denied"
+                          : "⚠️ Could not save shared text";
+                    }
+                  }
+                },
+                400
+              );
+          }
         );
-
-        const state =
-          document.getElementById(
-            "sharedTextStatus"
-          );
-
-        if (state) {
-          state.textContent =
-            "Saving…";
-        }
-
-        const text =
-          box.value;
-
-        /*
-         * Debounce writes so each keystroke doesn't produce a Firestore
-         * write. The final text is saved after 400ms of inactivity.
-         */
-        sharedTextSaveTimer =
-          setTimeout(
-            async function() {
-              const activeCoupleId =
-                getSharedCoupleId();
-
-              if (
-                !currentUser ||
-                !db ||
-                !activeCoupleId
-              ) {
-                if (state) {
-                  state.textContent =
-                    "🔗 Connect with your partner first.";
-                }
-                return;
-              }
-
-              try {
-                await db
-                  .collection("couples")
-                  .doc(activeCoupleId)
-                  .update({
-                    sharedText: text,
-                    sharedTextUpdatedAt:
-                      new Date().toISOString(),
-                    sharedTextUpdatedBy:
-                      currentUser.uid
-                  });
-
-                sharedTextLastLocalValue =
-                  text;
-
-                if (state) {
-                  state.textContent =
-                    "✓ Synced with your partner";
-                }
-              } catch (error) {
-                console.error(
-                  "V47 shared text save error:",
-                  error
-                );
-
-                if (state) {
-                  state.textContent =
-                    error &&
-                    error.code === "permission-denied"
-                      ? "⚠️ Firebase permission denied"
-                      : "⚠️ Could not save shared text";
-                }
-              }
-            },
-            400
-          );
       }
-    );
-  }
 
-  console.log(
-    "🌸 V47 shared text sync started:",
-    coupleId
-  );
+      console.log(
+        "🌸 V50 shared text sync started:",
+        coupleId
+      );
+    })
+    .catch(function(error) {
+      console.error(
+        "V50 shared text couple resolution failed:",
+        error
+      );
+
+      renderSharedText(
+        "",
+        "⚠️ Could not resolve your couple."
+      );
+    });
 }
 
 window.startSharedTextSync =
