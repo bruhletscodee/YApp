@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V28 - FULL MEAL REMINDERS + RING + MENU AI -->
 <!-- YAPP VERSION: V27 - DYNAMIC NUTRIENTS + MENU PHOTO RANKING -->
 <!-- YAPP VERSION: V26 SAFE SETTINGS - NULL-SAFE STARTUP -->
 <!-- YAPP VERSION: V25 STARTUP FIX - SETTINGS ELEMENT GUARDS -->
@@ -1180,37 +1181,43 @@ COUPLE
 
       <div class="settings-row">
         <div>
-          <div class="settings-title" id="reminderRoleTitle">🌷 Girlfriend breakfast reminder</div>
+          <div class="settings-title" id="reminderRoleTitle">🌷 Girlfriend meal reminders</div>
           <div class="settings-help" id="reminderRoleHelp">
-            If Tracker says BOYFRIEND, you are the girlfriend and may control this reminder.
+            The girlfriend controls the three meal times. Reminders stay ON.
           </div>
         </div>
-
         <label class="toggle">
-          <input
-            id="settingsReminderToggle"
-            type="checkbox"
-            onchange="toggleReminderFromSettings()">
+          <input id="settingsReminderToggle" type="checkbox" checked onchange="toggleReminderFromSettings()">
           <span class="slider"></span>
         </label>
       </div>
 
-      <input
-        id="settingsBreakfast"
-        type="time"
-        value="08:00">
+      <div class="settings-help" style="margin:8px 0 4px">
+        Breakfast
+      </div>
+      <input id="settingsBreakfast" type="time" value="08:00">
 
-      <button
-        class="btn"
-        onclick="saveRemindersFromSettings()">
-        SAVE BREAKFAST REMINDER
+      <div class="settings-help" style="margin:8px 0 4px">
+        Lunch
+      </div>
+      <input id="settingsLunch" type="time" value="13:00">
+
+      <div class="settings-help" style="margin:8px 0 4px">
+        Dinner
+      </div>
+      <input id="settingsDinner" type="time" value="19:30">
+
+      <button class="btn" onclick="saveRemindersFromSettings()">
+        SAVE MEAL TIMES
       </button>
 
-      <div
-        id="reminderLockNote"
-        class="settings-help"
-        style="margin-top:10px">
-      </div>
+      <button class="btn" style="margin-top:8px;background:#fff0f6;color:#8f3e60;border:1px solid #efd4df"
+        onclick="requestReminderPermission()">
+        🔔 ENABLE NOTIFICATIONS
+      </button>
+
+      <div id="reminderLockNote" class="settings-help" style="margin-top:10px"></div>
+      <div id="reminderNotificationStatus" class="settings-help" style="margin-top:6px"></div>
     </div>
 
     <div class="settings-section">
@@ -1592,6 +1599,7 @@ async function startApp() {
   /* Settings-only reminder/effect UI. */
   loadSettingsReminderFields();
   loadSettingsEffects();
+  startReminderEngine();
 
   /*
    * Normalize before starting realtime food listeners.
@@ -3309,12 +3317,35 @@ function getGirlfriendReminderState() {
   };
 }
 
+function getGirlfriendReminderState() {
+  const reminders =
+    (currentProfile && currentProfile.reminders) || {};
+
+  const oldEnabled =
+    reminders.enabled !== undefined
+      ? reminders.enabled
+      : true;
+
+  return reminders.girlfriend || {
+    enabled: oldEnabled !== false,
+    breakfast: reminders.breakfast || "08:00",
+    lunch: reminders.lunch || "13:00",
+    dinner: reminders.dinner || "19:30"
+  };
+}
+
 function renderGirlfriendReminderControls() {
   const toggle =
     document.getElementById("settingsReminderToggle");
 
   const breakfast =
     document.getElementById("settingsBreakfast");
+
+  const lunch =
+    document.getElementById("settingsLunch");
+
+  const dinner =
+    document.getElementById("settingsDinner");
 
   const title =
     document.getElementById("reminderRoleTitle");
@@ -3325,7 +3356,10 @@ function renderGirlfriendReminderControls() {
   const note =
     document.getElementById("reminderLockNote");
 
-  if (!toggle || !breakfast) return;
+  const status =
+    document.getElementById("reminderNotificationStatus");
+
+  if (!toggle || !breakfast || !lunch || !dinner) return;
 
   const userSex =
     getUserSexFromTracker();
@@ -3337,11 +3371,9 @@ function renderGirlfriendReminderControls() {
     userSex === "girlfriend";
 
   /*
-   * The girlfriend owns this reminder:
-   * she may set the time and switch ON/OFF.
-   *
-   * The boyfriend can see the time, but it is locked ON
-   * and the time cannot be changed from his account.
+   * The girlfriend controls the reminder times and ON/OFF.
+   * The boyfriend sees the same schedule but cannot change it
+   * and the effective state is always ON.
    */
   toggle.checked =
     isGirlfriend
@@ -3351,33 +3383,86 @@ function renderGirlfriendReminderControls() {
   toggle.disabled =
     !isGirlfriend;
 
+  breakfast.disabled =
+    !isGirlfriend;
+
+  lunch.disabled =
+    !isGirlfriend;
+
+  dinner.disabled =
+    !isGirlfriend;
+
   breakfast.value =
     gfState.breakfast || "08:00";
 
-  breakfast.disabled =
-    !isGirlfriend;
+  lunch.value =
+    gfState.lunch || "13:00";
+
+  dinner.value =
+    gfState.dinner || "19:30";
 
   if (title) {
     title.textContent =
       isGirlfriend
-        ? "🌷 Your breakfast reminder"
-        : "🌷 Girlfriend breakfast reminder";
+        ? "🌷 Your meal reminders"
+        : "🌷 Girlfriend meal reminders";
   }
 
   if (help) {
     help.textContent =
       isGirlfriend
-        ? "Set your breakfast time and choose ON or OFF."
-        : "🔒 Locked: the girlfriend controls the time and OFF switch.";
+        ? "Set breakfast, lunch and dinner times. Your reminders stay ON whenever enabled."
+        : "🔒 Locked: the girlfriend controls meal times and the OFF switch.";
   }
 
   if (note) {
     note.textContent =
       isGirlfriend
-        ? "You control both the breakfast time and ON/OFF state."
-        : "🔒 Your girlfriend's breakfast reminder stays ON. You cannot change its time.";
+        ? "You control the schedule and the reminder ON/OFF state."
+        : "🔒 Your girlfriend's reminders stay ON. You cannot change the schedule or switch them off.";
+  }
+
+  if (status) {
+    if (!("Notification" in window)) {
+      status.textContent =
+        "Browser notifications are not available here. YApp can still show an in-app reminder while open.";
+    } else if (Notification.permission === "granted") {
+      status.textContent =
+        "🔔 Notifications enabled.";
+    } else if (Notification.permission === "denied") {
+      status.textContent =
+        "🔕 Notifications blocked by the browser. Enable them in site settings.";
+    } else {
+      status.textContent =
+        "🔔 Tap ENABLE NOTIFICATIONS so YApp can notify you.";
+    }
   }
 }
+
+window.requestReminderPermission = async function() {
+  try {
+    if (!("Notification" in window)) {
+      showToast("This browser doesn't support web notifications.");
+      return;
+    }
+
+    const permission =
+      await Notification.requestPermission();
+
+    if (permission === "granted") {
+      showToast("🔔 Notifications enabled.");
+      startReminderEngine();
+    } else {
+      showToast("Notifications were not enabled.");
+    }
+
+    renderGirlfriendReminderControls();
+
+  } catch (error) {
+    console.error("Notification permission error:", error);
+    showToast("Could not enable notifications.");
+  }
+};
 
 window.toggleReminderFromSettings = async function() {
   const toggle =
@@ -3385,16 +3470,24 @@ window.toggleReminderFromSettings = async function() {
 
   if (!toggle || !currentUser) return;
 
-  const userSex = getUserSexFromTracker();
+  const userSex =
+    getUserSexFromTracker();
 
   /*
-   * Only the girlfriend may toggle her breakfast reminder.
-   * If the user is the boyfriend, forcibly return it to ON.
+   * The boyfriend cannot disable these reminders.
    */
   if (userSex !== "girlfriend") {
     toggle.checked = true;
     toggle.disabled = true;
-    showToast("🔒 Only the girlfriend can turn this reminder off.");
+
+    if (currentProfile.reminders) {
+      if (!currentProfile.reminders.girlfriend) {
+        currentProfile.reminders.girlfriend = {};
+      }
+      currentProfile.reminders.girlfriend.enabled = true;
+    }
+
+    showToast("🔒 Only the girlfriend can turn reminders off.");
     return;
   }
 
@@ -3402,7 +3495,8 @@ window.toggleReminderFromSettings = async function() {
     await db.collection("users")
       .doc(currentUser.uid)
       .update({
-        "reminders.girlfriend.enabled": toggle.checked
+        "reminders.girlfriend.enabled":
+          toggle.checked
       });
 
     if (!currentProfile.reminders) {
@@ -3417,65 +3511,325 @@ window.toggleReminderFromSettings = async function() {
       toggle.checked;
 
     showToast(
-      "Breakfast reminder " +
+      "Meal reminders " +
       (toggle.checked ? "ON 🌸" : "OFF")
     );
 
+    startReminderEngine();
+
   } catch (error) {
-    console.error("Girlfriend reminder toggle error:", error);
-    showToast("Couldn't save reminder setting.");
+    console.error("Reminder toggle error:", error);
+    showToast("Couldn't save reminder state.");
     renderGirlfriendReminderControls();
   }
 };
 
 window.saveRemindersFromSettings = async function() {
-  const input =
+  const breakfast =
     document.getElementById("settingsBreakfast");
 
-  if (!input || !currentUser) return;
+  const lunch =
+    document.getElementById("settingsLunch");
+
+  const dinner =
+    document.getElementById("settingsDinner");
+
+  if (!breakfast || !lunch || !dinner || !currentUser) {
+    return;
+  }
 
   const userSex =
     getUserSexFromTracker();
 
+  /*
+   * Only the girlfriend may edit the three times.
+   */
   if (userSex !== "girlfriend") {
     renderGirlfriendReminderControls();
-    showToast("🔒 Only the girlfriend can set the breakfast time.");
+    showToast(
+      "🔒 Only the girlfriend can set the meal times."
+    );
     return;
   }
 
   try {
-    /*
-     * The breakfast time belongs to the girlfriend reminder.
-     * The boyfriend can SEE it, but cannot disable it.
-     */
     await db.collection("users")
       .doc(currentUser.uid)
       .update({
-        "reminders.girlfriend.breakfast": input.value
+        "reminders.girlfriend.enabled": true,
+        "reminders.girlfriend.breakfast": breakfast.value,
+        "reminders.girlfriend.lunch": lunch.value,
+        "reminders.girlfriend.dinner": dinner.value
       });
 
     if (!currentProfile.reminders) {
       currentProfile.reminders = {};
     }
 
-    if (!currentProfile.reminders.girlfriend) {
-      currentProfile.reminders.girlfriend = {};
-    }
+    currentProfile.reminders.girlfriend = {
+      enabled: true,
+      breakfast: breakfast.value,
+      lunch: lunch.value,
+      dinner: dinner.value
+    };
 
-    currentProfile.reminders.girlfriend.breakfast =
-      input.value;
+    /*
+     * A time change resets today's fired flags so the new times
+     * can ring.
+     */
+    resetReminderFireState();
 
-    showToast("Girlfriend breakfast time saved 🌸");
+    renderGirlfriendReminderControls();
+    startReminderEngine();
+
+    showToast("🌸 Meal times saved. Reminders are ON.");
 
   } catch (error) {
-    console.error("Breakfast reminder save error:", error);
-    showToast("Couldn't save breakfast reminder.");
+    console.error("Meal reminder save error:", error);
+    showToast("Couldn't save meal times.");
   }
 };
 
 function loadSettingsReminderFields() {
   renderGirlfriendReminderControls();
-};
+  startReminderEngine();
+}
+
+function getEffectiveReminderSchedule() {
+  const gfState =
+    getGirlfriendReminderState();
+
+  const userSex =
+    getUserSexFromTracker();
+
+  /*
+   * Girlfriend:
+   * use her actual ON/OFF choice.
+   *
+   * Boyfriend:
+   * always ON.
+   */
+  const enabled =
+    userSex === "girlfriend"
+      ? gfState.enabled !== false
+      : true;
+
+  return {
+    enabled,
+    breakfast: gfState.breakfast || "08:00",
+    lunch: gfState.lunch || "13:00",
+    dinner: gfState.dinner || "19:30"
+  };
+}
+
+function reminderStateKey() {
+  return "yapp_reminders_fired_" +
+    today();
+}
+
+function getReminderFireState() {
+  try {
+    return JSON.parse(
+      localStorage.getItem(reminderStateKey()) || "{}"
+    );
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveReminderFireState(state) {
+  try {
+    localStorage.setItem(
+      reminderStateKey(),
+      JSON.stringify(state)
+    );
+  } catch (error) {}
+}
+
+function resetReminderFireState() {
+  try {
+    localStorage.removeItem(
+      reminderStateKey()
+    );
+  } catch (error) {}
+}
+
+/*
+ * Short, audible "ring".
+ *
+ * Browsers may block audio until the user has interacted with
+ * the page. We also show a Notification when permission exists.
+ */
+function playReminderRing() {
+  try {
+    const AudioContext =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (!AudioContext) return;
+
+    const ctx =
+      new AudioContext();
+
+    const now =
+      ctx.currentTime;
+
+    [0, 0.22, 0.44].forEach(function(offset) {
+      const osc =
+        ctx.createOscillator();
+
+      const gain =
+        ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.value =
+        880;
+
+      gain.gain.setValueAtTime(
+        0.0001,
+        now + offset
+      );
+
+      gain.gain.exponentialRampToValueAtTime(
+        0.16,
+        now + offset + 0.025
+      );
+
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        now + offset + 0.18
+      );
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.2);
+    });
+
+    setTimeout(function() {
+      try { ctx.close(); } catch (e) {}
+    }, 1000);
+
+  } catch (error) {
+    console.warn(
+      "Reminder sound unavailable:",
+      error
+    );
+  }
+}
+
+function fireMealReminder(type, time) {
+  const titleMap = {
+    breakfast: "🌅 Breakfast time",
+    lunch: "☀️ Lunch time",
+    dinner: "🌙 Dinner time"
+  };
+
+  const bodyMap = {
+    breakfast: "Good morning 🌸 Time to eat breakfast.",
+    lunch: "🌸 YApp says it's lunch time.",
+    dinner: "🌸 YApp says it's dinner time."
+  };
+
+  const title =
+    titleMap[type] || "🍽️ YApp reminder";
+
+  const body =
+    bodyMap[type] ||
+    ("Your meal reminder is scheduled for " + time + ".");
+
+  playReminderRing();
+
+  if (
+    "Notification" in window &&
+    Notification.permission === "granted"
+  ) {
+    try {
+      new Notification(title, {
+        body,
+        icon: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f338.png",
+        tag: "yapp-" + type + "-" + today()
+      });
+    } catch (error) {
+      console.warn(
+        "Notification failed:",
+        error
+      );
+    }
+  }
+
+  showToast(
+    title + " — " + body
+  );
+}
+
+function checkMealReminders() {
+  if (!currentUser || !currentProfile) return;
+
+  const schedule =
+    getEffectiveReminderSchedule();
+
+  if (!schedule.enabled) return;
+
+  const now =
+    new Date();
+
+  const hh =
+    String(now.getHours())
+      .padStart(2, "0");
+
+  const mm =
+    String(now.getMinutes())
+      .padStart(2, "0");
+
+  const currentTime =
+    hh + ":" + mm;
+
+  const fireState =
+    getReminderFireState();
+
+  const meals = [
+    ["breakfast", schedule.breakfast],
+    ["lunch", schedule.lunch],
+    ["dinner", schedule.dinner]
+  ];
+
+  meals.forEach(function(item) {
+    const type = item[0];
+    const time = item[1];
+    const key = type + "@" + time;
+
+    if (
+      time === currentTime &&
+      !fireState[key]
+    ) {
+      fireState[key] = true;
+      saveReminderFireState(fireState);
+      fireMealReminder(type, time);
+    }
+  });
+}
+
+let reminderTimer = null;
+
+function startReminderEngine() {
+  if (reminderTimer) {
+    clearInterval(reminderTimer);
+  }
+
+  /*
+   * Check every 15 seconds so we don't miss the minute because of
+   * normal browser timing drift.
+   */
+  reminderTimer =
+    setInterval(
+      checkMealReminders,
+      15000
+    );
+
+  checkMealReminders();
+}
 
 function setEffectLayerVisible(id,visible){
   const el=document.getElementById(id);
@@ -3549,7 +3903,7 @@ function loadReminders() {
     dinner.value = reminders.dinner || "19:30";
   }
 }
-console.log("🌸 YApp V27 NUTRIENT + MENU AI loaded successfully.");
+console.log("🌸 YApp V28 REMINDERS RING + MENU AI loaded successfully.");
 
 document.addEventListener("DOMContentLoaded", function() {
   const input =
@@ -3573,6 +3927,27 @@ document.addEventListener("DOMContentLoaded", function() {
       "📸 " + file.name + " selected.";
   });
 });
+
+
+document.addEventListener("click", function() {
+  /*
+   * Touch/click interaction makes mobile browsers more willing to
+   * allow reminder audio later.
+   */
+  try {
+    const Ctx =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (!Ctx || window.__yappAudioReady) return;
+
+    const ctx = new Ctx();
+    ctx.resume().then(function() {
+      window.__yappAudioReady = true;
+      try { ctx.close(); } catch (e) {}
+    }).catch(function(){});
+  } catch (error) {}
+}, {once:true});
 
 </script>
 
