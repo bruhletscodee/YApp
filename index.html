@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V27 - DYNAMIC NUTRIENTS + MENU PHOTO RANKING -->
 <!-- YAPP VERSION: V26 SAFE SETTINGS - NULL-SAFE STARTUP -->
 <!-- YAPP VERSION: V25 STARTUP FIX - SETTINGS ELEMENT GUARDS -->
 <!-- YAPP VERSION: V24 CONNECT CODE FIX -->
@@ -515,7 +516,60 @@ textarea:focus{
 .flower-layer{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:-1}
 .flower{position:absolute;top:-30px;font-size:16px;opacity:.32;animation:flowerFall linear infinite}
 @keyframes flowerFall{to{transform:translateY(110vh) rotate(-360deg)}}
-</style>
+
+.menu-rank{
+  border:1px solid #f0dbe4;
+  background:#fff;
+  border-radius:16px;
+  padding:12px;
+  margin-top:10px;
+}
+.menu-rank.best{
+  border-color:#e2a7bd;
+  background:#fff7fa;
+}
+.menu-rank-top{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+}
+.menu-rank-number{
+  width:34px;
+  height:34px;
+  flex:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:12px;
+  background:#f6e1e9;
+  color:#8f3e60;
+  font-weight:800;
+}
+.menu-rank-name{
+  font-weight:800;
+  color:#6b4151;
+}
+.menu-rank-meta{
+  font-size:12px;
+  color:#9a7182;
+  line-height:1.45;
+  margin-top:5px;
+}
+.menu-fit{
+  margin-top:7px;
+  font-size:12px;
+  color:#7a5060;
+}
+.remaining-chip{
+  display:inline-block;
+  margin:3px 4px 0 0;
+  padding:4px 7px;
+  border-radius:10px;
+  background:#f8edf2;
+  color:#774c5d;
+  font-size:11px;
+}
+''</style>
 </head>
 
 <body>
@@ -784,6 +838,41 @@ Not connected
 NUTRIENTS
 ========================= -->
 
+<div class="card" id="calorieRemainingCard">
+  <div class="sub">Today's calorie budget</div>
+  <div style="display:flex;align-items:end;gap:8px;margin-top:4px">
+    <div id="caloriesRemaining" class="number">0</div>
+    <div class="label">kcal remaining</div>
+  </div>
+  <div id="calorieBudgetText" class="sub" style="margin-top:6px">
+    0 eaten · 0 daily goal
+  </div>
+  <div class="progress" style="margin-top:10px">
+    <div id="calorieBudgetProgress"></div>
+  </div>
+</div>
+
+<div class="card" id="menuAiCard">
+  <h2>🍽️ AI Menu Picker</h2>
+  <p class="sub">
+    Upload a restaurant menu, food counter menu, or screenshot. YApp ranks the best choices using your calories and nutrient needs left for today.
+  </p>
+
+  <input
+    id="menuPhotoInput"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    capture="environment"
+    style="margin:10px 0">
+
+  <button class="btn" id="menuAnalyzeButton" onclick="analyzeMenuPhoto()">
+    📸 Analyze Menu
+  </button>
+
+  <div id="menuPhotoPreview" class="sub" style="margin-top:10px"></div>
+  <div id="menuAiResult" style="margin-top:14px"></div>
+</div>
+
 <div class="card">
 
 <h2>
@@ -802,7 +891,7 @@ Protein
   class="nutrient-value">
 0 g
 </div>
-<div class="nutrient-goal">
+<div id="gProtein" class="nutrient-goal">
 Track daily intake
 </div>
 </div>
@@ -817,7 +906,7 @@ Carbohydrates
   class="nutrient-value">
 0 g
 </div>
-<div class="nutrient-goal">
+<div id="gCarbs" class="nutrient-goal">
 Track daily intake
 </div>
 </div>
@@ -832,7 +921,7 @@ Fat
   class="nutrient-value">
 0 g
 </div>
-<div class="nutrient-goal">
+<div id="gFat" class="nutrient-goal">
 Track daily intake
 </div>
 </div>
@@ -847,7 +936,7 @@ Fiber
   class="nutrient-value">
 0 g
 </div>
-<div class="nutrient-goal">
+<div id="gFiber" class="nutrient-goal">
 ~25–30 g
 </div>
 </div>
@@ -862,7 +951,7 @@ Sugar
   class="nutrient-value">
 0 g
 </div>
-<div class="nutrient-goal">
+<div id="gSugar" class="nutrient-goal">
 Track intake
 </div>
 </div>
@@ -877,7 +966,7 @@ Sodium
   class="nutrient-value">
 0 mg
 </div>
-<div class="nutrient-goal">
+<div id="gSodium" class="nutrient-goal">
 Prefer ≤2300 mg
 </div>
 </div>
@@ -892,7 +981,7 @@ Calcium
   class="nutrient-value">
 0 mg
 </div>
-<div class="nutrient-goal">
+<div id="gCalcium" class="nutrient-goal">
 Track intake
 </div>
 </div>
@@ -907,7 +996,7 @@ Iron
   class="nutrient-value">
 0 mg
 </div>
-<div class="nutrient-goal">
+<div id="gIron" class="nutrient-goal">
 Track intake
 </div>
 </div>
@@ -922,7 +1011,7 @@ Potassium
   class="nutrient-value">
 0 mg
 </div>
-<div class="nutrient-goal">
+<div id="gPotassium" class="nutrient-goal">
 Track intake
 </div>
 </div>
@@ -937,7 +1026,7 @@ Vitamin C
   class="nutrient-value">
 0 mg
 </div>
-<div class="nutrient-goal">
+<div id="gVitaminC" class="nutrient-goal">
 Track intake
 </div>
 </div>
@@ -952,7 +1041,7 @@ Vitamin A
   class="nutrient-value">
 0 µg
 </div>
-<div class="nutrient-goal">
+<div id="gVitaminA" class="nutrient-goal">
 Track intake
 </div>
 </div>
@@ -967,7 +1056,7 @@ Vitamin D
   class="nutrient-value">
 0 µg
 </div>
-<div class="nutrient-goal">
+<div id="gVitaminD" class="nutrient-goal">
 Track intake
 </div>
 </div>
@@ -2156,7 +2245,8 @@ function calculateTotals(meals) {
 }
 
 function renderMyMeals(meals) {
-  const todayMeals = meals.filter(m => m.date === today());
+  window.__myMeals = meals.slice();
+  const todayMeals = meals.filter(m => localDateFromMeal(m) === today());
   const totals = calculateTotals(todayMeals);
   renderNutrition(totals);
 
@@ -2190,25 +2280,155 @@ function renderMyMeals(meals) {
   }).join("");
 }
 
+function getEstimatedNutrientTargets() {
+  const calories =
+    Number(currentProfile && currentProfile.dailyGoal) || 2300;
+
+  /*
+   * App-level estimates, not medical prescriptions:
+   * 50% carbs, 20% protein, 30% fat;
+   * fiber 14g/1000 kcal; sodium 2300mg max.
+   */
+  const protein = calories * 0.20 / 4;
+  const carbs = calories * 0.50 / 4;
+  const fat = calories * 0.30 / 9;
+  const fiber = calories / 1000 * 14;
+
+  const isFemale =
+    currentProfile &&
+    currentProfile.role === "girlfriend";
+
+  return {
+    calories,
+    protein,
+    carbs,
+    fat,
+    fiber,
+    sugar: calories * 0.10 / 4,
+    sodium: 2300,
+    calcium: 1000,
+    iron: isFemale ? 18 : 8,
+    potassium: isFemale ? 2600 : 3400,
+    vitaminC: isFemale ? 75 : 90,
+    vitaminA: isFemale ? 700 : 900,
+    vitaminD: 15
+  };
+}
+
+function formatRemaining(remaining, unit) {
+  const value = Math.max(0, remaining);
+  return Math.round(value * 10) / 10 + " " + unit + " left";
+}
+
 function renderNutrition(t) {
-  if (!document.getElementById('myCalories')) return;  document.getElementById("myCalories").textContent =
+  if (!document.getElementById("myCalories")) return;
+
+  const targets = getEstimatedNutrientTargets();
+
+  document.getElementById("myCalories").textContent =
     Math.round(t.calories);
 
   document.getElementById("myProgress").style.width =
-    Math.min(100, (t.calories / (currentProfile.dailyGoal || 2300)) * 100) + "%";
+    Math.min(
+      100,
+      (t.calories / targets.calories) * 100
+    ) + "%";
 
-  document.getElementById("nProtein").textContent = t.protein.toFixed(1) + " g";
-  document.getElementById("nCarbs").textContent = t.carbs.toFixed(1) + " g";
-  document.getElementById("nFat").textContent = t.fat.toFixed(1) + " g";
-  document.getElementById("nFiber").textContent = t.fiber.toFixed(1) + " g";
-  document.getElementById("nSugar").textContent = t.sugar.toFixed(1) + " g";
-  document.getElementById("nSodium").textContent = Math.round(t.sodium) + " mg";
-  document.getElementById("nCalcium").textContent = Math.round(t.calcium) + " mg";
-  document.getElementById("nIron").textContent = t.iron.toFixed(1) + " mg";
-  document.getElementById("nPotassium").textContent = Math.round(t.potassium) + " mg";
-  document.getElementById("nVitaminC").textContent = t.vitaminC.toFixed(1) + " mg";
-  document.getElementById("nVitaminA").textContent = Math.round(t.vitaminA) + " µg";
-  document.getElementById("nVitaminD").textContent = t.vitaminD.toFixed(1) + " µg";
+  const remainingCalories =
+    Math.max(0, targets.calories - t.calories);
+
+  const remEl =
+    document.getElementById("caloriesRemaining");
+  const budgetText =
+    document.getElementById("calorieBudgetText");
+  const budgetProgress =
+    document.getElementById("calorieBudgetProgress");
+
+  if (remEl) {
+    remEl.textContent =
+      Math.round(remainingCalories);
+  }
+
+  if (budgetText) {
+    budgetText.textContent =
+      Math.round(t.calories) +
+      " eaten · " +
+      Math.round(targets.calories) +
+      " daily goal";
+  }
+
+  if (budgetProgress) {
+    budgetProgress.style.width =
+      Math.min(
+        100,
+        (t.calories / targets.calories) * 100
+      ) + "%";
+  }
+
+  const values = {
+    nProtein: [t.protein, targets.protein, "g"],
+    nCarbs: [t.carbs, targets.carbs, "g"],
+    nFat: [t.fat, targets.fat, "g"],
+    nFiber: [t.fiber, targets.fiber, "g"],
+    nSugar: [t.sugar, targets.sugar, "g"],
+    nSodium: [t.sodium, targets.sodium, "mg"],
+    nCalcium: [t.calcium, targets.calcium, "mg"],
+    nIron: [t.iron, targets.iron, "mg"],
+    nPotassium: [t.potassium, targets.potassium, "mg"],
+    nVitaminC: [t.vitaminC, targets.vitaminC, "mg"],
+    nVitaminA: [t.vitaminA, targets.vitaminA, "µg"],
+    nVitaminD: [t.vitaminD, targets.vitaminD, "µg"]
+  };
+
+  Object.entries(values).forEach(function(entry) {
+    const id = entry[0];
+    const value = entry[1][0];
+    const target = entry[1][1];
+    const unit = entry[1][2];
+
+    const valueEl = document.getElementById(id);
+    if (valueEl) {
+      valueEl.textContent =
+        (unit === "mg" ? Math.round(value) : value.toFixed(1)) +
+        " " + unit;
+    }
+  });
+
+  const goalText = {
+    gProtein: "Target " + targets.protein.toFixed(1) + " g · " +
+      formatRemaining(targets.protein - t.protein, "g"),
+    gCarbs: "Target " + targets.carbs.toFixed(1) + " g · " +
+      formatRemaining(targets.carbs - t.carbs, "g"),
+    gFat: "Target " + targets.fat.toFixed(1) + " g · " +
+      formatRemaining(targets.fat - t.fat, "g"),
+    gFiber: "Target " + targets.fiber.toFixed(1) + " g · " +
+      formatRemaining(targets.fiber - t.fiber, "g"),
+    gSugar: "Limit ~" + targets.sugar.toFixed(1) + " g · " +
+      (t.sugar > targets.sugar
+        ? Math.round(t.sugar - targets.sugar) + " g over"
+        : formatRemaining(targets.sugar - t.sugar, "g")),
+    gSodium: "Max " + Math.round(targets.sodium) + " mg · " +
+      (t.sodium > targets.sodium
+        ? Math.round(t.sodium - targets.sodium) + " mg over"
+        : formatRemaining(targets.sodium - t.sodium, "mg")),
+    gCalcium: "Target " + Math.round(targets.calcium) + " mg · " +
+      formatRemaining(targets.calcium - t.calcium, "mg"),
+    gIron: "Target " + Math.round(targets.iron) + " mg · " +
+      formatRemaining(targets.iron - t.iron, "mg"),
+    gPotassium: "Target " + Math.round(targets.potassium) + " mg · " +
+      formatRemaining(targets.potassium - t.potassium, "mg"),
+    gVitaminC: "Target " + Math.round(targets.vitaminC) + " mg · " +
+      formatRemaining(targets.vitaminC - t.vitaminC, "mg"),
+    gVitaminA: "Target " + Math.round(targets.vitaminA) + " µg · " +
+      formatRemaining(targets.vitaminA - t.vitaminA, "µg"),
+    gVitaminD: "Target " + Math.round(targets.vitaminD) + " µg · " +
+      formatRemaining(targets.vitaminD - t.vitaminD, "µg")
+  };
+
+  Object.entries(goalText).forEach(function(entry) {
+    const el = document.getElementById(entry[0]);
+    if (el) el.textContent = entry[1];
+  });
 }
 
 function localDateFromMeal(meal) {
@@ -2355,6 +2575,300 @@ async function initAI() {
 }
 
 initAI();
+
+
+async function fileToGenerativePart(file) {
+  const base64 =
+    await new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+
+      reader.onloadend = function() {
+        try {
+          resolve(
+            String(reader.result).split(",")[1]
+          );
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  return {
+    inlineData: {
+      data: base64,
+      mimeType: file.type
+    }
+  };
+}
+
+function getTodayNutritionSnapshot() {
+  const meals =
+    Array.isArray(window.__myMeals)
+      ? window.__myMeals
+      : [];
+
+  const todayMeals =
+    meals.filter(m => localDateFromMeal(m) === today());
+
+  const totals =
+    calculateTotals(todayMeals);
+
+  const targets =
+    getEstimatedNutrientTargets();
+
+  const remaining = {
+    calories: Math.max(0, targets.calories - totals.calories),
+    protein: Math.max(0, targets.protein - totals.protein),
+    carbs: Math.max(0, targets.carbs - totals.carbs),
+    fat: Math.max(0, targets.fat - totals.fat),
+    fiber: Math.max(0, targets.fiber - totals.fiber),
+    sugarRoom: Math.max(0, targets.sugar - totals.sugar),
+    sodiumRoom: Math.max(0, targets.sodium - totals.sodium),
+    calcium: Math.max(0, targets.calcium - totals.calcium),
+    iron: Math.max(0, targets.iron - totals.iron),
+    potassium: Math.max(0, targets.potassium - totals.potassium),
+    vitaminC: Math.max(0, targets.vitaminC - totals.vitaminC),
+    vitaminA: Math.max(0, targets.vitaminA - totals.vitaminA),
+    vitaminD: Math.max(0, targets.vitaminD - totals.vitaminD)
+  };
+
+  return {
+    totals,
+    targets,
+    remaining
+  };
+}
+
+function renderMenuRecommendations(data) {
+  const box =
+    document.getElementById("menuAiResult");
+
+  if (!box) return;
+
+  if (!data || !Array.isArray(data.choices) || !data.choices.length) {
+    box.innerHTML =
+      '<div class="ai-result">No menu choices were identified.</div>';
+    return;
+  }
+
+  const snapshot =
+    getTodayNutritionSnapshot();
+
+  const names = [
+    "🏆 Best match",
+    "🥈 Excellent",
+    "🥉 Very good"
+  ];
+
+  box.innerHTML =
+    '<div class="ai-result">' +
+    '<b>🌸 YApp menu ranking</b>' +
+    '<div class="sub" style="margin-top:6px">' +
+      Math.round(snapshot.remaining.calories) +
+      ' kcal remain · ranking considers your nutrient gaps' +
+    '</div>' +
+    data.choices.map(function(choice, index) {
+      const rank = index + 1;
+      const cls = rank === 1 ? "menu-rank best" : "menu-rank";
+
+      return `
+        <div class="${cls}">
+          <div class="menu-rank-top">
+            <div class="menu-rank-number">${rank}</div>
+            <div>
+              <div class="menu-rank-name">
+                ${escapeHTML(choice.name || "Menu item")}
+              </div>
+              <div class="menu-rank-meta">
+                ${Math.round(Number(choice.calories) || 0)} kcal ·
+                Protein ${Number(choice.protein_g || 0).toFixed(1)}g ·
+                Carbs ${Number(choice.carbs_g || 0).toFixed(1)}g ·
+                Fat ${Number(choice.fat_g || 0).toFixed(1)}g ·
+                Fiber ${Number(choice.fiber_g || 0).toFixed(1)}g
+              </div>
+              <div class="menu-fit">
+                ${escapeHTML(choice.reason || "")}
+              </div>
+              ${
+                choice.calories_left_after !== undefined
+                  ? '<span class="remaining-chip">' +
+                    Math.round(Number(choice.calories_left_after)) +
+                    ' kcal left after</span>'
+                  : ''
+              }
+              ${
+                choice.portion
+                  ? '<span class="remaining-chip">' +
+                    escapeHTML(choice.portion) +
+                    '</span>'
+                  : ''
+              }
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("") +
+    '<div class="note" style="margin-top:10px">' +
+    escapeHTML(
+      data.note ||
+      "Estimates depend on the menu photo and portion assumptions."
+    ) +
+    '</div></div>';
+}
+
+window.analyzeMenuPhoto = async function() {
+  const input =
+    document.getElementById("menuPhotoInput");
+
+  const button =
+    document.getElementById("menuAnalyzeButton");
+
+  const resultBox =
+    document.getElementById("menuAiResult");
+
+  if (!input || !input.files || !input.files[0]) {
+    showToast("Upload or take a photo of the menu first 📸");
+    return;
+  }
+
+  if (!model) {
+    showToast("AI is still loading or unavailable.");
+    return;
+  }
+
+  const file = input.files[0];
+
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+    showToast("Use a JPG, PNG, or WEBP image.");
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    showToast("That image is too large. Choose one under 10 MB.");
+    return;
+  }
+
+  const snapshot =
+    getTodayNutritionSnapshot();
+
+  button.disabled = true;
+  button.textContent = "🌸 Reading menu...";
+
+  try {
+    const imagePart =
+      await fileToGenerativePart(file);
+
+    const prompt = `
+You are YApp's menu-ranking nutrition AI.
+
+Analyze the attached menu/photo.
+
+Today's nutrition status:
+Calories eaten: ${Math.round(snapshot.totals.calories)}
+Daily calorie goal: ${Math.round(snapshot.targets.calories)}
+Calories remaining: ${Math.round(snapshot.remaining.calories)}
+
+Remaining targets:
+Protein: ${snapshot.remaining.protein.toFixed(1)} g
+Carbs: ${snapshot.remaining.carbs.toFixed(1)} g
+Fat: ${snapshot.remaining.fat.toFixed(1)} g
+Fiber: ${snapshot.remaining.fiber.toFixed(1)} g
+Sugar room: ${snapshot.remaining.sugarRoom.toFixed(1)} g
+Sodium room: ${Math.round(snapshot.remaining.sodiumRoom)} mg
+Calcium: ${Math.round(snapshot.remaining.calcium)} mg
+Iron: ${snapshot.remaining.iron.toFixed(1)} mg
+Potassium: ${Math.round(snapshot.remaining.potassium)} mg
+Vitamin C: ${Math.round(snapshot.remaining.vitaminC)} mg
+Vitamin A: ${Math.round(snapshot.remaining.vitaminA)} µg
+Vitamin D: ${snapshot.remaining.vitaminD.toFixed(1)} µg
+
+Find menu items that are actually visible in the image.
+
+Rank exactly the best 10 available choices from 1 to 10.
+Favor options that fit the remaining calories and help fill nutrient gaps.
+Penalize choices that exceed the remaining calorie budget or are very high in sodium/sugar/fat when better choices exist.
+You may recommend a reasonable smaller/larger portion if useful.
+Do not invent a menu item that is not visible.
+
+Return ONLY JSON:
+{
+  "choices": [
+    {
+      "rank": 1,
+      "name": "visible menu item",
+      "portion": "recommended portion",
+      "calories": 450,
+      "protein_g": 30,
+      "carbs_g": 50,
+      "fat_g": 12,
+      "fiber_g": 8,
+      "sugar_g": 6,
+      "sodium_mg": 700,
+      "calcium_mg": 120,
+      "iron_mg": 3,
+      "potassium_mg": 600,
+      "vitamin_c_mg": 30,
+      "vitamin_a_ug": 250,
+      "vitamin_d_ug": 1,
+      "calories_left_after": 950,
+      "reason": "Fits the calorie budget and improves the day's protein and fiber balance."
+    }
+  ],
+  "note": "Portions and nutrition are estimates from the menu photo."
+}
+
+Be concise and return at most 10 choices.
+`;
+
+    const result =
+      await model.generateContent([
+        prompt,
+        imagePart
+      ]);
+
+    let raw =
+      result.response.text().trim();
+
+    raw =
+      raw
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+
+    const data =
+      JSON.parse(raw);
+
+    if (!data.choices || !data.choices.length) {
+      throw new Error("No menu items found.");
+    }
+
+    renderMenuRecommendations(data);
+
+    showToast("🌸 Menu ranked for you.");
+
+  } catch (error) {
+    console.error("Menu AI error:", error);
+
+    if (resultBox) {
+      resultBox.innerHTML =
+        '<div class="ai-result">⚠️ ' +
+        escapeHTML(
+          error && error.message
+            ? error.message
+            : "Could not analyze this menu."
+        ) +
+        '</div>';
+    }
+
+    showToast("Menu analysis failed.");
+  } finally {
+    button.disabled = false;
+    button.textContent = "📸 Analyze Menu";
+  }
+};
 
 window.analyzeFood = async function() {
   const input = document.getElementById("aiInput");
@@ -2798,37 +3312,50 @@ function getGirlfriendReminderState() {
 function renderGirlfriendReminderControls() {
   const toggle =
     document.getElementById("settingsReminderToggle");
+
   const breakfast =
     document.getElementById("settingsBreakfast");
+
   const title =
     document.getElementById("reminderRoleTitle");
+
   const help =
     document.getElementById("reminderRoleHelp");
+
   const note =
     document.getElementById("reminderLockNote");
 
   if (!toggle || !breakfast) return;
 
-  const userSex = getUserSexFromTracker();
-  const gfState = getGirlfriendReminderState();
+  const userSex =
+    getUserSexFromTracker();
+
+  const gfState =
+    getGirlfriendReminderState();
+
+  const isGirlfriend =
+    userSex === "girlfriend";
 
   /*
-   * GIRLFRIEND:
-   *   She gets full control over her own breakfast reminder.
+   * The girlfriend owns this reminder:
+   * she may set the time and switch ON/OFF.
    *
-   * BOYFRIEND:
-   *   The girlfriend's reminder is locked ON.
+   * The boyfriend can see the time, but it is locked ON
+   * and the time cannot be changed from his account.
    */
-  const isGirlfriend = userSex === "girlfriend";
+  toggle.checked =
+    isGirlfriend
+      ? gfState.enabled !== false
+      : true;
 
-  toggle.checked = isGirlfriend
-    ? gfState.enabled !== false
-    : true;
-
-  toggle.disabled = !isGirlfriend;
+  toggle.disabled =
+    !isGirlfriend;
 
   breakfast.value =
     gfState.breakfast || "08:00";
+
+  breakfast.disabled =
+    !isGirlfriend;
 
   if (title) {
     title.textContent =
@@ -2840,15 +3367,15 @@ function renderGirlfriendReminderControls() {
   if (help) {
     help.textContent =
       isGirlfriend
-        ? "You are the girlfriend, so you can turn your breakfast reminder ON or OFF."
-        : "Tracker says GIRLFRIEND, so you are the boyfriend. Her breakfast reminder is locked ON.";
+        ? "Set your breakfast time and choose ON or OFF."
+        : "🔒 Locked: the girlfriend controls the time and OFF switch.";
   }
 
   if (note) {
     note.textContent =
       isGirlfriend
-        ? "You have full control of your breakfast reminder."
-        : "🔒 Locked ON — only the girlfriend can turn this reminder OFF.";
+        ? "You control both the breakfast time and ON/OFF state."
+        : "🔒 Your girlfriend's breakfast reminder stays ON. You cannot change its time.";
   }
 }
 
@@ -2907,7 +3434,14 @@ window.saveRemindersFromSettings = async function() {
 
   if (!input || !currentUser) return;
 
-  const userSex = getUserSexFromTracker();
+  const userSex =
+    getUserSexFromTracker();
+
+  if (userSex !== "girlfriend") {
+    renderGirlfriendReminderControls();
+    showToast("🔒 Only the girlfriend can set the breakfast time.");
+    return;
+  }
 
   try {
     /*
@@ -3015,7 +3549,31 @@ function loadReminders() {
     dinner.value = reminders.dinner || "19:30";
   }
 }
-console.log("🌸 YApp V26 SAFE SETTINGS loaded successfully.");
+console.log("🌸 YApp V27 NUTRIENT + MENU AI loaded successfully.");
+
+document.addEventListener("DOMContentLoaded", function() {
+  const input =
+    document.getElementById("menuPhotoInput");
+
+  const preview =
+    document.getElementById("menuPhotoPreview");
+
+  if (!input || !preview) return;
+
+  input.addEventListener("change", function() {
+    const file =
+      input.files && input.files[0];
+
+    if (!file) {
+      preview.textContent = "";
+      return;
+    }
+
+    preview.textContent =
+      "📸 " + file.name + " selected.";
+  });
+});
+
 </script>
 
 
