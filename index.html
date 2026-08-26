@@ -275,6 +275,55 @@ textarea:focus{
   white-space:nowrap;
 }
 
+.partner-card{
+  cursor:pointer;
+  transition:transform .15s, box-shadow .15s;
+}
+.partner-card:active{transform:scale(.99);}
+.connected-bar{
+  display:none;
+  background:#fff1f6;
+  border:1px solid #f3c6d6;
+  color:#8f3e60;
+  padding:12px 14px;
+  border-radius:16px;
+  margin-bottom:12px;
+  font-weight:650;
+}
+.tracker-select{
+  width:100%;
+  border:1px solid #efd4df;
+  border-radius:14px;
+  padding:12px;
+  background:#fff;
+  color:#633f4e;
+  font:inherit;
+}
+.modal-backdrop{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(80,35,55,.35);
+  z-index:1000;
+  padding:18px;
+  align-items:flex-end;
+  justify-content:center;
+}
+.modal-backdrop.show{display:flex;}
+.modal{
+  width:min(560px,100%);
+  max-height:82vh;
+  overflow:auto;
+  background:#fffafc;
+  border-radius:24px 24px 14px 14px;
+  padding:20px;
+  box-shadow:0 18px 60px rgba(70,20,40,.25);
+}
+.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+.close-btn{border:0;background:#ffe5ef;border-radius:50%;width:38px;height:38px;font-size:20px;cursor:pointer;}
+.partner-meal-row{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid #f5dfe7;}
+
+
 .nutrient-grid{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -565,6 +614,11 @@ Tell YApp a little about yourself.
   type="number"
   placeholder="Daily calorie goal">
 
+<select id="profileRole" class="tracker-select">
+  <option value="boyfriend">I am the boyfriend</option>
+  <option value="girlfriend">I am the girlfriend</option>
+</select>
+
 <button
   class="btn"
   onclick="saveProfile()">
@@ -625,6 +679,7 @@ You ❤️
 
 </div>
 
+<div id="connectedBar" class="connected-bar">❤️ Connected to <span id="connectedName">your partner</span></div>
 
 <!-- =========================
 CALORIES
@@ -664,11 +719,9 @@ YOU
 </div>
 
 
-<div class="stat">
+<div class="stat partner-card" onclick="openPartnerLogs()" title="Tap to view partner logs">
 
-<div class="label">
-GIRLFRIEND
-</div>
+<div class="label" id="partnerTrackerLabel">GIRLFRIEND</div>
 
 <div
   id="partnerCalories"
@@ -950,46 +1003,30 @@ MEALS
 COUPLE
 ========================= -->
 
+<div id="coupleCard" class="card">
+
+<h2>❤️ Couple</h2>
+
+<p class="sub">Give this code to your partner.</p>
+
+<div id="myCode" class="code">------</div>
+
+<input id="coupleCode" placeholder="Enter partner's code">
+
+<button class="btn" onclick="connectPartner()">CONNECT PARTNER</button>
+
+<p id="partnerStatus" class="sub" style="margin-top:12px">Not connected</p>
+
+</div>
+
 <div class="card">
-
-<h2>
-❤️ Couple
-</h2>
-
-<p class="sub">
-Give your girlfriend this code.
-She can enter it on her account.
-</p>
-
-<div
-  id="myCode"
-  class="code">
-------
+<h2>🎯 Tracker</h2>
+<p class="sub">Choose how your partner is shown in YApp.</p>
+<select id="trackerRole" class="tracker-select" onchange="setTrackerRole(this.value)">
+  <option value="girlfriend">Girlfriend</option>
+  <option value="boyfriend">Boyfriend</option>
+</select>
 </div>
-
-<input
-  id="coupleCode"
-  placeholder="Enter partner's code">
-
-<button
-  class="btn"
-  onclick="connectPartner()">
-
-CONNECT PARTNER
-
-</button>
-
-<p
-  id="partnerStatus"
-  class="sub"
-  style="margin-top:12px">
-
-Not connected
-
-</p>
-
-</div>
-
 
 <!-- =========================
 REMINDERS
@@ -1249,6 +1286,7 @@ window.logout = async function() {
 window.saveProfile = async function() {
   const name = document.getElementById("profileName").value.trim();
   const goal = Number(document.getElementById("profileGoal").value);
+  const role = document.getElementById("profileRole") ? document.getElementById("profileRole").value : "boyfriend";
 
   if (!name || !goal) {
     showToast("Enter your name and calorie goal.");
@@ -1266,6 +1304,7 @@ window.saveProfile = async function() {
   currentProfile = {
     name,
     dailyGoal: goal,
+    role: role,
     partnerId: null,
     coupleId,
     coupleCode: code,
@@ -1338,6 +1377,11 @@ function startApp() {
   document.getElementById("myCode").textContent =
     currentProfile.coupleCode || "------";
 
+  const trackerRole = document.getElementById("trackerRole");
+  if (trackerRole) {
+    trackerRole.value = currentProfile.partnerRole || (currentProfile.role === "boyfriend" ? "girlfriend" : "boyfriend");
+  }
+
   document.getElementById("date").textContent =
     new Date().toLocaleDateString(undefined, {
       weekday:"long",
@@ -1399,11 +1443,24 @@ async function resolvePartnerFromCouple() {
     if (!partnerId) {
       currentProfile.partnerId = null;
       document.getElementById("partnerStatus").textContent = "Waiting for partner";
+      document.getElementById("coupleCard").style.display = "block";
+      document.getElementById("connectedBar").style.display = "none";
       return;
     }
 
     currentProfile.partnerId = partnerId;
-    document.getElementById("partnerStatus").textContent = "❤️ Connected";
+    const partnerSnap = await db.collection("users").doc(partnerId).get();
+    const partner = partnerSnap.exists ? partnerSnap.data() : {};
+    const partnerName = partner.name || "your partner";
+    currentProfile.partnerName = partnerName;
+    currentProfile.partnerRole = currentProfile.partnerRole || (currentProfile.role === "boyfriend" ? "girlfriend" : "boyfriend");
+    document.getElementById("partnerStatus").textContent = "❤️ Connected to " + partnerName;
+    document.getElementById("connectedName").textContent = partnerName;
+    document.getElementById("connectedBar").style.display = "block";
+    document.getElementById("coupleCard").style.display = "none";
+    const trackerRole = document.getElementById("trackerRole");
+    if (trackerRole) trackerRole.value = currentProfile.partnerRole;
+    document.getElementById("partnerTrackerLabel").textContent = currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
     listenToPartnerMeals();
   } catch (error) {
     console.error("Resolve partner error:", error);
@@ -1442,6 +1499,12 @@ function listenToPartnerMeals() {
         if (partnerSnap.exists) {
           const partner = partnerSnap.data();
           const goal = partner.dailyGoal || 1800;
+          const partnerName = partner.name || "your partner";
+          currentProfile.partnerName = partnerName;
+          document.getElementById("connectedName").textContent = partnerName;
+          document.getElementById("connectedBar").style.display = "block";
+          document.getElementById("coupleCard").style.display = "none";
+          document.getElementById("partnerTrackerLabel").textContent = currentProfile.partnerRole === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
 
           document.getElementById("partnerGoal").textContent =
             "/ " + goal + " kcal";
@@ -1457,6 +1520,46 @@ function listenToPartnerMeals() {
       showToast("Could not sync partner data.");
     }
   );
+}
+
+/* -------------------------
+   Partner tracker controls
+------------------------- */
+window.setTrackerRole = async function(role) {
+  if (!currentProfile || !currentUser) return;
+  if (role !== "boyfriend" && role !== "girlfriend") return;
+  currentProfile.partnerRole = role;
+  const label = document.getElementById("partnerTrackerLabel");
+  if (label) label.textContent = role === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
+  try {
+    await db.collection("users").doc(currentUser.uid).update({partnerRole: role});
+  } catch (e) { console.error("Tracker preference error:", e); }
+};
+
+window.openPartnerLogs = function() {
+  if (!currentProfile || !currentProfile.partnerId) {
+    showToast("Connect your partner first.");
+    return;
+  }
+  const modal = document.getElementById("partnerLogsModal");
+  modal.classList.add("show");
+  const name = currentProfile.partnerName || (currentProfile.partnerRole === "boyfriend" ? "Boyfriend" : "Girlfriend");
+  document.getElementById("partnerLogsTitle").textContent = name + "'s meals";
+  renderPartnerLogList(window.__partnerMeals || []);
+};
+
+window.closePartnerLogs = function() {
+  document.getElementById("partnerLogsModal").classList.remove("show");
+};
+
+function renderPartnerLogList(meals) {
+  const list = document.getElementById("partnerLogsList");
+  if (!list) return;
+  const todayMeals = meals.filter(m => m.date === today()).sort((a,b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  if (!todayMeals.length) { list.innerHTML = '<div class="empty">No meals logged today 🌸</div>'; return; }
+  list.innerHTML = todayMeals.map(function(m) {
+    return '<div class="partner-meal-row"><div><b>' + escapeHTML(m.food || "Food") + '</b><div class="meal-meta">' + escapeHTML(m.time || "") + ' · Protein ' + Number(m.protein || 0).toFixed(1) + 'g · Fiber ' + Number(m.fiber || 0).toFixed(1) + 'g</div></div><div class="meal-cal">' + Math.round(m.calories || 0) + ' kcal</div></div>';
+  }).join("");
 }
 
 /* -------------------------
@@ -1548,6 +1651,10 @@ function renderNutrition(t) {
 function renderPartnerMeals(meals) {
   const todayMeals = meals.filter(m => m.date === today());
   const totals = calculateTotals(todayMeals);
+  window.__partnerMeals = meals.slice();
+  if (document.getElementById("partnerLogsModal") && document.getElementById("partnerLogsModal").classList.contains("show")) {
+    renderPartnerLogList(meals);
+  }
 
   document.getElementById("partnerCalories").textContent =
     Math.round(totals.calories);
@@ -1897,6 +2004,21 @@ function loadReminders() {
 
 console.log("🌸 YApp loaded successfully.");
 </script>
+
+
+
+<div id="partnerLogsModal" class="modal-backdrop" onclick="if(event.target===this)closePartnerLogs()">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="logo">🌸 YApp</div>
+        <h2 id="partnerLogsTitle">Partner's meals</h2>
+      </div>
+      <button class="close-btn" onclick="closePartnerLogs()">×</button>
+    </div>
+    <div id="partnerLogsList"></div>
+  </div>
+</div>
 
 </body>
 </html>
