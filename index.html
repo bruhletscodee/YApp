@@ -1,3 +1,6 @@
+<!-- YAPP VERSION: V34 - BETTER DIAGONAL CHERRY BRANCH -->
+<!-- YAPP VERSION: V33 - PETALS DETACH FROM CHERRY BLOSSOM BRANCH -->
+<!-- YAPP VERSION: V32 - CHERRY BRANCH CANOPY + PETAL FALL -->
 <!-- YAPP VERSION: V31 - INDIVIDUAL REMINDER CONTROLS -->
 <!-- YAPP VERSION: V30 STABLE - PARTNER LABEL + GIRLFRIEND REMINDER LOGIC -->
 <!-- YAPP VERSION: V28 - FULL MEAL REMINDERS + RING + MENU AI -->
@@ -451,27 +454,137 @@ textarea:focus{
   line-height:1.5;
 }
 
-.petals{
+
+
+.cherry-branch-layer{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:155px;
+  pointer-events:none;
+  overflow:hidden;
+  z-index:8;
+}
+
+.cherry-branch{
+  position:absolute;
+  left:50%;
+  top:-2px;
+  width:100%;
+  height:170px;
+  transform:translateX(-50%);
+  object-fit:contain;
+  object-position:center top;
+  filter:drop-shadow(0 2px 3px rgba(95,40,55,.10));
+}
+
+/*
+ * Falling petals are born ON the branch, close to visible blossoms,
+ * then gently detach and drift down. They do not spawn randomly
+ * across the whole top of the screen.
+ */
+.petal-fall-layer{
   position:fixed;
   inset:0;
   pointer-events:none;
   overflow:hidden;
-  z-index:-1;
+  z-index:9;
 }
 
-.petal{
+.branch-falling-petal{
   position:absolute;
-  top:-30px;
-  font-size:18px;
-  opacity:.55;
-  animation:fall linear infinite;
+  top:0;
+  left:0;
+  width:17px;
+  height:auto;
+  opacity:.85;
+  transform-origin:center;
+  will-change:transform,opacity;
+  animation-name:branchPetalFall;
+  animation-timing-function:cubic-bezier(.18,.65,.35,1);
+  animation-iteration-count:infinite;
 }
 
-@keyframes fall{
-  to{
+@keyframes branchPetalFall{
+  0%{
     transform:
-      translateY(110vh)
-      rotate(360deg);
+      translate3d(var(--x-start), var(--y-start), 0)
+      rotate(var(--r-start))
+      scale(.72);
+    opacity:0;
+  }
+
+  5%{
+    transform:
+      translate3d(
+        calc(var(--x-start) + var(--detach-x)),
+        calc(var(--y-start) + 1px),
+        0
+      )
+      rotate(calc(var(--r-start) + 18deg))
+      scale(1);
+    opacity:.92;
+  }
+
+  12%{
+    transform:
+      translate3d(
+        calc(var(--x-start) + var(--detach-x)),
+        calc(var(--y-start) + var(--detach-y)),
+        0
+      )
+      rotate(calc(var(--r-start) + 42deg))
+      scale(1);
+    opacity:.9;
+  }
+
+  28%{
+    transform:
+      translate3d(
+        calc(var(--x-mid) + var(--sway-1)),
+        28vh,
+        0
+      )
+      rotate(calc(var(--r-start) + 105deg))
+      scale(.92);
+    opacity:.82;
+  }
+
+  52%{
+    transform:
+      translate3d(
+        calc(var(--x-mid-2) + var(--sway-2)),
+        52vh,
+        0
+      )
+      rotate(calc(var(--r-start) + 190deg))
+      scale(1.06);
+    opacity:.72;
+  }
+
+  75%{
+    transform:
+      translate3d(
+        calc(var(--x-end) - var(--sway-2)),
+        76vh,
+        0
+      )
+      rotate(calc(var(--r-start) + 300deg))
+      scale(.86);
+    opacity:.5;
+  }
+
+  100%{
+    transform:
+      translate3d(
+        var(--x-final),
+        112vh,
+        0
+      )
+      rotate(calc(var(--r-start) + 480deg))
+      scale(.7);
+    opacity:0;
   }
 }
 
@@ -577,39 +690,18 @@ textarea:focus{
 
 <body>
 
-<div class="petals" id="petalLayer">
 
-<span
-  class="petal"
-  style="left:8%;animation-duration:9s">
-  🌸
-</span>
-
-<span
-  class="petal"
-  style="left:25%;animation-duration:12s;animation-delay:2s">
-  🌸
-</span>
-
-<span
-  class="petal"
-  style="left:52%;animation-duration:10s;animation-delay:4s">
-  🌸
-</span>
-
-<span
-  class="petal"
-  style="left:76%;animation-duration:13s;animation-delay:1s">
-  🌸
-</span>
-
-<span
-  class="petal"
-  style="left:91%;animation-duration:11s;animation-delay:5s">
-  🌸
-</span>
-
+<!-- Cherry blossom branch canopy -->
+<div class="cherry-branch-layer" id="cherryBranchLayer" aria-hidden="true">
+  <img
+    class="cherry-branch"
+    alt=""
+    src="https://www.toppng.com/png/detail/82-820606_0-transparent-cherry-blossom-branch.png">
 </div>
+
+<!-- Petals are spawned around the branch and fall downward -->
+<div class="petal-fall-layer" id="petalLayer" aria-hidden="true"></div>
+
 <div class="flower-layer" id="flowerLayer">
 <span class="flower" style="left:15%;animation-duration:14s;animation-delay:1s">🌷</span>
 <span class="flower" style="left:38%;animation-duration:17s;animation-delay:4s">🌼</span>
@@ -618,6 +710,7 @@ textarea:focus{
 </div>
 
 <div class="app">
+
 
 
 <!-- =========================
@@ -3936,6 +4029,232 @@ function startReminderEngine() {
   checkMealReminders();
 }
 
+
+const YAPP_PETAL_SPRITES = ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAKCAYAAACE2W/HAAABdklEQVR42jWRLY8TURiFn/PeuZ12k4YsHwaCAQSGBIklwWDX7c/AoLEQQrD8ARJI6pAYshKPwWEWQ0p326Ezc+/7IqYrjjwfeY4iggAgEBClLil+P4bhWXi9W91ve/gta/L3vJh/wLSW2R9FBE4AgRF415+UbffKh/GRIRBgti7EMpKdN0eL93k++9QA2MHo++Fp+btZ+VgQQiY8wPDjhOHy47HvTzFtDA+o4F1/MmwuPo//BlSFPKAGFgYYkgaAKH6vjuWJhaPxcvd6WF+s6nZ/0xwIiPBpZgAoFGQFTUKXJq0bannQb3cvvevJAkkASA1xmIuHIJGgKmmdZOemnH428/arGsMFbpOqgQtiygExAsjsd2rblWGivb58Prtx7V1tZxQzxqsSjAgRZmMYO8/pRzNvPyqnXxqjJoAGahQa77oX++3uzVgmsggsJfIsf5sdLd7aov0SAtWoTJdcgYCovvRSHrv7nSj1IWJIOZ+lNp9xYPAfQgPFQOyU/3IAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAA8CAYAAABB2Bu+AAAAlUlEQVR42u3OPQ5BYRSE4XdOPoIblUStsgW7sQsLsGKFRFzuOaNA4mcJTPnkLUZ1yQ7RKzRYEL5eN9gdBgMxnE47cljbbraJylpdzv0W3ASEpCN45PJChiipz2JB1RKgjbvZ3vZcigOmqbLABnvi0LlVgBBVWIDSBrhXghbA85SBxiMQQkDwsYbe4av4wx9+BjJz+go3xzxLPCFimQMAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAYAAAA7KqwyAAABa0lEQVR42lWQvYoUcRDEq7pn3J319j5QA4XzIhENDO8BTEw0OTD2GcwUMzG4QME3EN/I1EDETPALuZvb+fh3l8HswFlQUdNF1Y8KAQQgQCWvKcZ7GeU+UvuYRbY0/qb7F3r1me5/welUKWOJMR5kN5yo659GxlGJcEjgnGwEzCBjb1X1qV4uP1TN4iPcOka7eTS27WteDMcoCZFIm+IJgQRogkDAHDJ0cv6smtX7emf1zlJxs4zDcVEBDIAJYkLENI0CSRgBZ6KC4GAb4/BQZbzDUIAxHkY7PCvnm1clYrkdDifgAMjcoiAE6+X8Eca23mneWEC7g9uC6+bt4vrB3WZv97lfqb/SpykyQLDZPQBAqDGVc4YCgkhQBgABKPJWduOTftO+zIwjmwiI5Nm2yVnS/9RXm1NKOZGepdkGZezF0D/uLzYvkHmDtF9A7AOAzL8vVs0ppUvPlwP+U0ARtyWtI/MQACStze3bPwVJwvlnsCMcAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAABZklEQVR42k2SrW5VURSEv1l778O90ISgikVhKnkDeAAsiocAy3NgMIQgAYNG1CKQhCBBNgTuPffv9Ow1iLbQkSuZzDcrIzvpGADxX8YSGApx7V4Bwibd79peYt8UZFB/KrQmkgTi0lZB5P784XZcvfXcj2UThtbat3Z09ExDO40a66uEIJP5MD2OKY+H2ZQpKVOSf7b359/jG0/TI7sv8xI73H1bqaYOkUF1ITooIcfxznj26z2T710AJQGar3UiBYRQFCQx7fYc1qvX+DIBaVtq/aISWBASCuECPaAOjXE9Puib/VMSQiFraKdlaJ989VIDEoQoBA1xWI2v3LkVCKKVr2UxvHMtmzk7mUbdlF5o53BjEh73Ncfti4suIWIxfIhF+5g16JjE/OMuhbZYgsqZ7CuQhDR9d3jSN7vnfe4nDq2ilO/DcvFSdfhMiR+yjS+mgDAykFbv80mvsZY4SBrtyJA2fwEJ2cATKcYXqgAAAABJRU5ErkJggg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAKCAYAAABi8KSDAAABHUlEQVR42k2QsU0dURREz9z73vLXQEQHpC7CATVQBA0QOnADTpwguQQHFg2Q0ABCcmJCJIQESB9s/7+77BsHa0tMPKNzNLLNPE6HQa7BCS4AEgOhJyQjQCC78Xz/+BCb6SAMlrGgCcig39/9WPrVV5W8C2xqiasiKEAlKASdgzLDZv3r02b98s1z2w/cMmtcz2laGssLMkRKdJGtvc7vX4fhuCDmyPJjliAgvCiCkATgwMzjdBRYZFcvSq0/39T+Fwm0FRqQfgcSinKz6vvPmRoBwOgfwWKS4imzXMdyi6xV973b2z1VyW0TNLXFP+O29quz0r/7IrtBA2jYhMfpw7jdnAT6IzRkrZfa2TlXibVsL+Rl8SaC1hYjyQ7xF2/Ye956OxEZAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAJCAYAAADkZNYtAAABB0lEQVR42nXGMS5EURSH8e9/zr1vxoyxBqERldZKaJV2oLYIOxA7EK3oNAqJRmhUEhNCxrw37917NJS+r/mptv1mu/w+iVK2FZjBABBgnvNNGo8uSOlRgOqy2/uav9/VfoUHWEAIMMPc8Zwfmo3ZkUbp1hArKZACk0gusokMpBqo73dL1x6EAsPsNTfNNSEk8bdJSAaIVdcdDn2/b0iLZjI9BYEgzAgzqkRIYPYh8xeCZDJv5f48WZ9eVnPCvJLSWyT/HJwl2e/zaHzunu4VQyWizBjKTgxlZ7Vsj0stW1Xg5k/N2vjM8/gKZ64oFYCIQOjP6RdTpIWkAYFqrYSg1hi51PFPIfgBZNl1NAClrBIAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAJCAYAAAALpr0TAAABAUlEQVR42mXKu00DQRgE4Pn3ceezjSyLBkgdE9IHckIISLRCA0BARAEUQAMIiRCJ2IgEsGUvnO9ud/8hsAMeI41mgg9d0+634etYuzxQEpFEZgb/1AiQw2J11S3DDZs0cQQM/kc0Zvc2e4leBL4sU388OjDePTCniRT+6QeMO+F9PkfTOgeBsxbii2cW9lFKf+cH1bUCEGpGquuTerG89ImwxgIA1AmiMW01Gk5dr3crpAKqaEO4iGF9aijwKoAIspePZOWzGg2nGwgCVHSr+rxbN2dFRF9I0EpMzryydPdCcgPBzSTdzev2SJv2MBPDLJLpzOw3xHZ0e5PuQdBl6Pgbu5yefRODSdIAAAAASUVORK5CYII="];
+
+function seedBranchPetals() {
+  const layer =
+    document.getElementById("petalLayer");
+
+  if (!layer) return;
+
+  layer.innerHTML = "";
+
+  /*
+   * Approximate blossom/branch attachment points on the supplied
+   * cherry branch artwork. Each petal starts from one of these points,
+   * then gets a tiny local random offset.
+   *
+   * Coordinates are percentages of the branch image width/height.
+   */
+  const branchPoints = [
+    [4, 36],
+    [16, 30],
+    [28, 26],
+    [40, 22],
+    [52, 20],
+    [64, 19],
+    [76, 22],
+    [88, 27],
+    [97, 33]
+  ]
+
+  /*
+   * Fewer petals gives the impression of individual blossoms dropping
+   * rather than a generic particle effect.
+   */
+  const count =
+    Math.max(
+      12,
+      Math.min(
+        16,
+        Math.round(window.innerWidth / 55)
+      )
+    );
+
+  for (let i = 0; i < count; i++) {
+    const img =
+      document.createElement("img");
+
+    img.className =
+      "branch-falling-petal";
+
+    img.alt = "";
+
+    img.src =
+      YAPP_PETAL_SPRITES[
+        Math.floor(
+          Math.random() *
+          YAPP_PETAL_SPRITES.length
+        )
+      ];
+
+    const point =
+      branchPoints[
+        i % branchPoints.length
+      ];
+
+    /*
+     * Convert attachment point to viewport coordinates.
+     * The branch image itself is 155px high.
+     */
+    const baseX =
+      point[0] + (Math.random() * 4 - 2);
+
+    const baseY =
+      point[1] + (Math.random() * 12 - 6);
+
+    /*
+     * Keep the first motion very close to the branch, then let
+     * gravity take over.
+     */
+    const detachX =
+      Math.random() * 2.6 - 1.3;
+
+    const detachY =
+      8 + Math.random() * 12;
+
+    const midX =
+      Math.max(
+        -5,
+        Math.min(
+          105,
+          baseX +
+          (Math.random() * 8 - 4)
+        )
+      );
+
+    const midX2 =
+      Math.max(
+        -8,
+        Math.min(
+          108,
+          midX +
+          (Math.random() * 10 - 5)
+        )
+      );
+
+    const endX =
+      Math.max(
+        -15,
+        Math.min(
+          115,
+          midX2 +
+          (Math.random() * 14 - 7)
+        )
+      );
+
+    const finalX =
+      Math.max(
+        -20,
+        Math.min(
+          120,
+          endX +
+          (Math.random() * 20 - 10)
+        )
+      );
+
+    const rotation =
+      Math.random() * 100 - 50;
+
+    const duration =
+      10 + Math.random() * 8;
+
+    const delay =
+      -Math.random() * duration;
+
+    const size =
+      9 + Math.random() * 7;
+
+    const startXJitter =
+      Math.random() * 2.4 - 1.2;
+
+    /*
+     * Use vw for horizontal positions and px for the branch attachment.
+     */
+    img.style.setProperty(
+      "--x-start",
+      (baseX + startXJitter) + "vw"
+    );
+
+    img.style.setProperty(
+      "--y-start",
+      (baseY * 1.0) + "px"
+    );
+
+    img.style.setProperty(
+      "--detach-x",
+      detachX + "vw"
+    );
+
+    img.style.setProperty(
+      "--detach-y",
+      detachY + "px"
+    );
+
+    img.style.setProperty(
+      "--x-mid",
+      midX + "vw"
+    );
+
+    img.style.setProperty(
+      "--x-mid-2",
+      midX2 + "vw"
+    );
+
+    img.style.setProperty(
+      "--x-end",
+      endX + "vw"
+    );
+
+    img.style.setProperty(
+      "--x-final",
+      finalX + "vw"
+    );
+
+    img.style.setProperty(
+      "--r-start",
+      rotation + "deg"
+    );
+
+    img.style.setProperty(
+      "--sway-1",
+      (Math.random() * 20 - 10) + "px"
+    );
+
+    img.style.setProperty(
+      "--sway-2",
+      (Math.random() * 32 - 16) + "px"
+    );
+
+    img.style.width =
+      size + "px";
+
+    img.style.animationDuration =
+      duration + "s";
+
+    img.style.animationDelay =
+      delay + "s";
+
+    layer.appendChild(img);
+  }
+}
+
+function refreshBranchPetals() {
+  const layer =
+    document.getElementById("petalLayer");
+
+  if (!layer) return;
+
+  const visible =
+    layer.style.display !== "none";
+
+  seedBranchPetals();
+
+  layer.style.display =
+    visible ? "block" : "none";
+}
+
 function setEffectLayerVisible(id,visible){
   const el=document.getElementById(id);
   if(el) el.style.display=visible ? "block" : "none";
@@ -3952,6 +4271,11 @@ function loadSettingsEffects(){
   if(ft) ft.checked=flowers;
   setEffectLayerVisible("petalLayer",petals);
   setEffectLayerVisible("flowerLayer",flowers);
+
+  if (!document.getElementById("petalLayer").children.length) {
+    seedBranchPetals();
+    setEffectLayerVisible("petalLayer",petals);
+  }
 }
 
 window.toggleEffects=async function(){
@@ -4008,7 +4332,7 @@ function loadReminders() {
     dinner.value = reminders.dinner || "19:30";
   }
 }
-console.log("🌸 YApp V31 INDIVIDUAL REMINDER CONTROLS loaded successfully.");
+console.log("🌸 YApp V34 BETTER DIAGONAL BRANCH loaded successfully.");
 
 document.addEventListener("DOMContentLoaded", function() {
   const input =
@@ -4054,6 +4378,13 @@ document.addEventListener("click", function() {
   } catch (error) {}
 }, {once:true});
 
+
+window.addEventListener("resize", function() {
+  if (document.getElementById("petalLayer")) {
+    seedBranchPetals();
+    loadSettingsEffects();
+  }
+});
 </script>
 
 
