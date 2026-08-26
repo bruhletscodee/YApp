@@ -1,3 +1,6 @@
+<!-- YAPP VERSION: V23 - GIRLFRIEND ONLY REMINDER TOGGLE -->
+<!-- YAPP VERSION: V22 ROLE-BASED BREAKFAST REMINDER + FAST FLASH-LITE AI -->
+<!-- YAPP VERSION: V21 SETTINGS + EFFECT CONTROLS -->
 <!-- YAPP VERSION: V20 EXPLICIT PARTNER LISTENER -->
 <!-- YAPP VERSION: V20 EXPLICIT PARTNER LISTENER -->
 <!-- YAPP VERSION: V18 CANONICAL COUPLE - BOTH PHONES SHARE ONE ID -->
@@ -493,12 +496,28 @@ textarea:focus{
     translateY(0);
 }
 
+
+.settings-btn{border:1px solid #efd4df;background:#fffafc;color:#8f3e60;border-radius:14px;padding:10px 13px;font-size:16px;cursor:pointer}
+.settings-modal{display:none;position:fixed;inset:0;background:rgba(80,35,55,.35);z-index:1100;padding:16px;align-items:center;justify-content:center}
+.settings-modal.show{display:flex}
+.settings-sheet{width:min(620px,100%);max-height:88vh;overflow:auto;background:#fffafc;border-radius:26px;padding:18px;box-shadow:0 20px 60px #0002}
+.settings-section{background:#fff;border:1px solid #f1d9e2;border-radius:18px;padding:15px;margin-top:12px}
+.settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #f5e4ea}
+.settings-row:last-child{border-bottom:0}
+.settings-title{font-weight:750;color:#6b4151}
+.settings-help{font-size:12px;color:#a27a8c;line-height:1.4}
+.close-settings{border:0;background:#f8e8ef;color:#8f3e60;width:38px;height:38px;border-radius:12px;font-size:22px;cursor:pointer}
+.code-copy{display:flex;gap:8px;align-items:center;margin-top:10px}
+.code-copy .code{flex:1}
+.flower-layer{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:-1}
+.flower{position:absolute;top:-30px;font-size:16px;opacity:.32;animation:flowerFall linear infinite}
+@keyframes flowerFall{to{transform:translateY(110vh) rotate(-360deg)}}
 </style>
 </head>
 
 <body>
 
-<div class="petals">
+<div class="petals" id="petalLayer">
 
 <span
   class="petal"
@@ -531,7 +550,12 @@ textarea:focus{
 </span>
 
 </div>
-
+<div class="flower-layer" id="flowerLayer">
+<span class="flower" style="left:15%;animation-duration:14s;animation-delay:1s">🌷</span>
+<span class="flower" style="left:38%;animation-duration:17s;animation-delay:4s">🌼</span>
+<span class="flower" style="left:64%;animation-duration:15s;animation-delay:2s">🌷</span>
+<span class="flower" style="left:86%;animation-duration:19s;animation-delay:6s">🌼</span>
+</div>
 
 <div class="app">
 
@@ -661,11 +685,10 @@ Eat better, together.
 
 </div>
 
-<button
-  class="logout"
-  onclick="logout()">
-Log out
-</button>
+<div style="display:flex;gap:8px;align-items:center">
+<button class="settings-btn" onclick="openSettings()" aria-label="Open settings">⚙️</button>
+<button class="logout" onclick="logout()">Log out</button>
+</div>
 
 </div>
 
@@ -1011,130 +1034,118 @@ MEALS
 COUPLE
 ========================= -->
 
-<div id="coupleCard" class="card">
-
-<h2>❤️ Couple</h2>
-
-<p class="sub">Give this code to your partner.</p>
-
-<div id="myCode" class="code">------</div>
-
-<input id="coupleCode" placeholder="Enter partner's code">
-
-<button class="btn" onclick="connectPartner()">CONNECT PARTNER</button>
-
-<p id="partnerStatus" class="sub" style="margin-top:12px">Not connected</p>
-
-</div>
-
-<div class="card">
-<h2>🎯 Tracker</h2>
-<p class="sub">Choose how your partner is shown in YApp.</p>
-<select id="trackerRole" class="tracker-select" onchange="setTrackerRole(this.value)">
-  <option value="girlfriend">Girlfriend</option>
-  <option value="boyfriend">Boyfriend</option>
-</select>
-</div>
-
-<!-- =========================
-REMINDERS
-========================= -->
-
-<div class="card">
-
-<h2>
-⏰ Meal reminders
-</h2>
-
-<div class="reminder">
-
-<div>
-
-<b>Your reminders</b>
-
-<div class="sub">
-You can turn yours off.
-</div>
-
-</div>
-
-<label class="toggle">
-
-<input
-  id="reminderToggle"
-  type="checkbox"
-  onchange="toggleReminder()">
-
-<span class="slider"></span>
-
-</label>
-
-</div>
-
-
-<input
-  id="breakfast"
-  type="time"
-  value="08:00">
-
-<input
-  id="lunch"
-  type="time"
-  value="13:00">
-
-<input
-  id="dinner"
-  type="time"
-  value="19:30">
-
-<button
-  class="btn"
-  onclick="saveReminders()">
-
-SAVE REMINDERS
-
-</button>
-
-
-<div class="reminder">
-
-<div>
-
-<b>
-🌷 Girlfriend's reminders
-</b>
-
-<div class="sub">
-Her reminders stay enabled.
-</div>
-
-</div>
-
-<label class="toggle">
-
-<input
-  type="checkbox"
-  checked
-  disabled>
-
-<span
-  class="slider"
-  style="background:#d45d8b">
-
-</span>
-
-</label>
-
-</div>
-
-</div>
-
 
 </section>
 
 </div>
 
 
+
+<div id="settingsModal" class="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-sheet">
+    <div class="modal-head">
+      <div>
+        <div class="logo">⚙️ YApp Settings</div>
+        <div class="sub">Customize your couple tracker and YApp.</div>
+      </div>
+      <button class="close-settings" onclick="closeSettings()">×</button>
+    </div>
+
+    <div class="settings-section">
+      <h2>❤️ Couple</h2>
+      <div class="settings-row">
+        <div>
+          <div class="settings-title">Connection</div>
+          <div id="settingsPartnerStatus" class="settings-help">Not connected</div>
+        </div>
+      </div>
+      <div class="settings-help">Share this 6-character code with your partner.</div>
+      <div class="code-copy">
+        <div id="settingsMyCode" class="code">------</div>
+        <button class="btn" style="width:auto" onclick="copyCoupleCode()">COPY</button>
+      </div>
+      <div style="margin-top:12px">
+        <input id="settingsCoupleCode" placeholder="Enter partner's code">
+        <button class="btn" onclick="connectPartnerFromSettings()">CONNECT PARTNER</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>🎯 Tracker</h2>
+      <div class="settings-row">
+        <div>
+          <div class="settings-title">Partner label</div>
+          <div class="settings-help">Choose how your partner is shown.</div>
+        </div>
+        <select id="settingsTrackerRole" class="tracker-select" onchange="setTrackerRole(this.value)">
+          <option value="girlfriend">Girlfriend</option>
+          <option value="boyfriend">Boyfriend</option>
+        </select>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h2>⏰ Meal reminders</h2>
+
+      <div class="settings-row">
+        <div>
+          <div class="settings-title" id="reminderRoleTitle">🌷 Girlfriend breakfast reminder</div>
+          <div class="settings-help" id="reminderRoleHelp">
+            If Tracker says BOYFRIEND, you are the girlfriend and may control this reminder.
+          </div>
+        </div>
+
+        <label class="toggle">
+          <input
+            id="settingsReminderToggle"
+            type="checkbox"
+            onchange="toggleReminderFromSettings()">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <input
+        id="settingsBreakfast"
+        type="time"
+        value="08:00">
+
+      <button
+        class="btn"
+        onclick="saveRemindersFromSettings()">
+        SAVE BREAKFAST REMINDER
+      </button>
+
+      <div
+        id="reminderLockNote"
+        class="settings-help"
+        style="margin-top:10px">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>🌸 YApp effects</h2>
+      <div class="settings-row">
+        <div>
+          <div class="settings-title">Cherry petal falling</div>
+          <div class="settings-help">Turn the falling cherry blossoms on or off.</div>
+        </div>
+        <label class="toggle">
+          <input id="petalToggle" type="checkbox" onchange="toggleEffects()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-title">Flower falling</div>
+          <div class="settings-help">Turn the extra falling flowers on or off.</div>
+        </div>
+        <label class="toggle">
+          <input id="flowerToggle" type="checkbox" onchange="toggleEffects()">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
 <div
   id="toast"
   class="toast">
@@ -1433,6 +1444,7 @@ async function startApp() {
     });
 
   loadReminders();
+  loadSettingsEffects();
 
   /*
    * V18: normalize both sides onto ONE canonical couple ID before
@@ -1915,6 +1927,11 @@ window.setTrackerRole = async function(role) {
   currentProfile.partnerRole = role;
   const label = document.getElementById("partnerTrackerLabel");
   if (label) label.textContent = role === "boyfriend" ? "BOYFRIEND" : "GIRLFRIEND";
+
+  if (typeof loadSettingsReminderFields === "function") {
+    loadSettingsReminderFields();
+  }
+
   try {
     await db.collection("users").doc(currentUser.uid).update({partnerRole: role});
   } catch (e) { console.error("Tracker preference error:", e); }
@@ -2161,7 +2178,11 @@ async function initAI() {
 
     model =
       aiModule.getGenerativeModel(ai, {
-        model: "gemini-3.6-flash"
+        model: "gemini-3.5-flash-lite",
+        generationConfig: {
+          maxOutputTokens: 800,
+          responseMimeType: "application/json"
+        }
       });
 
     console.log("🌸 YApp Gemini ready.");
@@ -2194,83 +2215,53 @@ window.analyzeFood = async function() {
 
   try {
     const prompt = `
-You are the nutrition engine for YApp.
+YApp fast nutrition parser.
 
-The user wrote:
-"${text}"
+User: "${text}"
 
-Identify every food and drink.
+Identify foods and drinks, including Indian/international dishes and quantities.
+Estimate a normal serving when unclear.
 
-Understand:
-- natural language
-- quantities
-- serving sizes
-- Indian foods
-- international foods
-- mixed dishes
-- beverages
-
-For each food return:
-name
-quantity
-unit
-calories
-protein_g
-carbs_g
-fat_g
-fiber_g
-sugar_g
-sodium_mg
-calcium_mg
-iron_mg
-potassium_mg
-vitamin_c_mg
-vitamin_a_ug
-vitamin_d_ug
-confidence
-
-Return ONLY valid JSON in this shape:
-
+Return ONLY JSON:
 {
-  "foods": [
+  "foods":[
     {
-      "name": "apple",
-      "quantity": 1,
-      "unit": "medium",
-      "calories": 95,
-      "protein_g": 0.5,
-      "carbs_g": 25,
-      "fat_g": 0.3,
-      "fiber_g": 4.4,
-      "sugar_g": 19,
-      "sodium_mg": 2,
-      "calcium_mg": 11,
-      "iron_mg": 0.2,
-      "potassium_mg": 195,
-      "vitamin_c_mg": 8.4,
-      "vitamin_a_ug": 6,
-      "vitamin_d_ug": 0,
-      "confidence": 0.95
+      "name":"apple",
+      "quantity":1,
+      "unit":"medium",
+      "calories":95,
+      "protein_g":0.5,
+      "carbs_g":25,
+      "fat_g":0.3,
+      "fiber_g":4.4,
+      "sugar_g":19,
+      "sodium_mg":2,
+      "calcium_mg":11,
+      "iron_mg":0.2,
+      "potassium_mg":195,
+      "vitamin_c_mg":8.4,
+      "vitamin_a_ug":6,
+      "vitamin_d_ug":0,
+      "confidence":0.95
     }
   ],
-  "totalCalories": 95,
-  "totalProtein": 0.5,
-  "totalCarbs": 25,
-  "totalFat": 0.3,
-  "totalFiber": 4.4,
-  "totalSugar": 19,
-  "totalSodium": 2,
-  "totalCalcium": 11,
-  "totalIron": 0.2,
-  "totalPotassium": 195,
-  "totalVitaminC": 8.4,
-  "totalVitaminA": 6,
-  "totalVitaminD": 0,
-  "explanation": "Estimated using a typical serving size."
+  "totalCalories":95,
+  "totalProtein":0.5,
+  "totalCarbs":25,
+  "totalFat":0.3,
+  "totalFiber":4.4,
+  "totalSugar":19,
+  "totalSodium":2,
+  "totalCalcium":11,
+  "totalIron":0.2,
+  "totalPotassium":195,
+  "totalVitaminC":8.4,
+  "totalVitaminA":6,
+  "totalVitaminD":0,
+  "explanation":"Typical serving estimate."
 }
 
-Nutrition values are estimates. If the quantity is unclear, use a reasonable serving estimate and lower confidence.
-Do NOT return markdown.
+Keep the response compact.
 `;
 
     const result = await model.generateContent(prompt);
@@ -2368,7 +2359,11 @@ Do NOT return markdown.
     console.error("YApp AI error:", error);
     resultBox.innerHTML = `
       <div class="ai-result">
-        ⚠️ ${escapeHTML(error.message || "AI analysis failed.")}
+        ⚠️ ${escapeHTML(
+          error && error.message && error.message.includes("429")
+            ? "AI free quota is temporarily exhausted. Try again later."
+            : (error.message || "AI analysis failed.")
+        )}
       </div>
     `;
     showToast("AI analysis failed.");
@@ -2505,10 +2500,282 @@ window.saveReminders = async function() {
       "reminders.dinner": dinner
     });
 
+    if (!currentProfile.reminders) currentProfile.reminders = {};
+    currentProfile.reminders.breakfast = breakfast;
+    currentProfile.reminders.lunch = lunch;
+    currentProfile.reminders.dinner = dinner;
+
     showToast("Reminder times saved 🌸");
   } catch (error) {
     console.error("Reminder save error:", error);
     showToast(error.message || "Could not save reminders.");
+  }
+};
+
+
+window.openSettings = function(){
+  const modal=document.getElementById("settingsModal");
+  if(!modal) return;
+  modal.classList.add("show");
+
+  const code=currentProfile && currentProfile.coupleCode ? currentProfile.coupleCode : "------";
+  const codeEl=document.getElementById("settingsMyCode");
+  if(codeEl) codeEl.textContent=code;
+
+  const status=document.getElementById("settingsPartnerStatus");
+  if(status) status.textContent=currentProfile && currentProfile.partnerName
+    ? "❤️ Connected to "+currentProfile.partnerName : "Not connected";
+
+  const role=document.getElementById("settingsTrackerRole");
+  if(role) role.value=(currentProfile && currentProfile.partnerRole) ||
+    ((currentProfile && currentProfile.role==="boyfriend") ? "girlfriend" : "boyfriend");
+
+  loadSettingsReminderFields();
+  loadSettingsEffects();
+};
+
+window.closeSettings=function(){
+  const modal=document.getElementById("settingsModal");
+  if(modal) modal.classList.remove("show");
+};
+
+window.copyCoupleCode=async function(){
+  const code=currentProfile && currentProfile.coupleCode ? currentProfile.coupleCode : "";
+  if(!code){ showToast("No couple code available yet."); return; }
+  try{ await navigator.clipboard.writeText(code); showToast("Couple code copied 🌸"); }
+  catch(e){ showToast("Code: "+code); }
+};
+
+window.connectPartnerFromSettings=async function(){
+  const input=document.getElementById("settingsCoupleCode");
+  const mainInput=document.getElementById("coupleCode");
+  if(!input || !mainInput) return;
+  mainInput.value=input.value.trim().toUpperCase();
+  await window.connectPartner();
+  input.value="";
+  openSettings();
+};
+
+function getUserSexFromTracker() {
+  /*
+   * Tracker shows the PARTNER.
+   * Therefore:
+   *   Tracker = BOYFRIEND  -> current user is GIRLFRIEND
+   *   Tracker = GIRLFRIEND -> current user is BOYFRIEND
+   */
+  const partnerRole =
+    (currentProfile && currentProfile.partnerRole) ||
+    (currentProfile && currentProfile.role === "boyfriend"
+      ? "girlfriend"
+      : "boyfriend");
+
+  return partnerRole === "boyfriend"
+    ? "girlfriend"
+    : "boyfriend";
+}
+
+function getGirlfriendReminderState() {
+  const reminders =
+    (currentProfile && currentProfile.reminders) || {};
+
+  /*
+   * The girlfriend's reminder is the only reminder that is allowed
+   * to be switched off. If no explicit state exists, it is ON.
+   */
+  return reminders.girlfriend || {
+    enabled: true,
+    breakfast: reminders.breakfast || "08:00"
+  };
+}
+
+function renderGirlfriendReminderControls() {
+  const toggle =
+    document.getElementById("settingsReminderToggle");
+  const breakfast =
+    document.getElementById("settingsBreakfast");
+  const title =
+    document.getElementById("reminderRoleTitle");
+  const help =
+    document.getElementById("reminderRoleHelp");
+  const note =
+    document.getElementById("reminderLockNote");
+
+  if (!toggle || !breakfast) return;
+
+  const userSex = getUserSexFromTracker();
+  const gfState = getGirlfriendReminderState();
+
+  /*
+   * GIRLFRIEND:
+   *   She gets full control over her own breakfast reminder.
+   *
+   * BOYFRIEND:
+   *   The girlfriend's reminder is locked ON.
+   */
+  const isGirlfriend = userSex === "girlfriend";
+
+  toggle.checked = isGirlfriend
+    ? gfState.enabled !== false
+    : true;
+
+  toggle.disabled = !isGirlfriend;
+
+  breakfast.value =
+    gfState.breakfast || "08:00";
+
+  if (title) {
+    title.textContent =
+      isGirlfriend
+        ? "🌷 Your breakfast reminder"
+        : "🌷 Girlfriend breakfast reminder";
+  }
+
+  if (help) {
+    help.textContent =
+      isGirlfriend
+        ? "You are the girlfriend, so you can turn your breakfast reminder ON or OFF."
+        : "Tracker says GIRLFRIEND, so you are the boyfriend. Her breakfast reminder is locked ON.";
+  }
+
+  if (note) {
+    note.textContent =
+      isGirlfriend
+        ? "You have full control of your breakfast reminder."
+        : "🔒 Locked ON — only the girlfriend can turn this reminder OFF.";
+  }
+}
+
+window.toggleReminderFromSettings = async function() {
+  const toggle =
+    document.getElementById("settingsReminderToggle");
+
+  if (!toggle || !currentUser) return;
+
+  const userSex = getUserSexFromTracker();
+
+  /*
+   * Only the girlfriend may toggle her breakfast reminder.
+   * If the user is the boyfriend, forcibly return it to ON.
+   */
+  if (userSex !== "girlfriend") {
+    toggle.checked = true;
+    toggle.disabled = true;
+    showToast("🔒 Only the girlfriend can turn this reminder off.");
+    return;
+  }
+
+  try {
+    await db.collection("users")
+      .doc(currentUser.uid)
+      .update({
+        "reminders.girlfriend.enabled": toggle.checked
+      });
+
+    if (!currentProfile.reminders) {
+      currentProfile.reminders = {};
+    }
+
+    if (!currentProfile.reminders.girlfriend) {
+      currentProfile.reminders.girlfriend = {};
+    }
+
+    currentProfile.reminders.girlfriend.enabled =
+      toggle.checked;
+
+    showToast(
+      "Breakfast reminder " +
+      (toggle.checked ? "ON 🌸" : "OFF")
+    );
+
+  } catch (error) {
+    console.error("Girlfriend reminder toggle error:", error);
+    showToast("Couldn't save reminder setting.");
+    renderGirlfriendReminderControls();
+  }
+};
+
+window.saveRemindersFromSettings = async function() {
+  const input =
+    document.getElementById("settingsBreakfast");
+
+  if (!input || !currentUser) return;
+
+  const userSex = getUserSexFromTracker();
+
+  try {
+    /*
+     * The breakfast time belongs to the girlfriend reminder.
+     * The boyfriend can SEE it, but cannot disable it.
+     */
+    await db.collection("users")
+      .doc(currentUser.uid)
+      .update({
+        "reminders.girlfriend.breakfast": input.value
+      });
+
+    if (!currentProfile.reminders) {
+      currentProfile.reminders = {};
+    }
+
+    if (!currentProfile.reminders.girlfriend) {
+      currentProfile.reminders.girlfriend = {};
+    }
+
+    currentProfile.reminders.girlfriend.breakfast =
+      input.value;
+
+    showToast("Girlfriend breakfast time saved 🌸");
+
+  } catch (error) {
+    console.error("Breakfast reminder save error:", error);
+    showToast("Couldn't save breakfast reminder.");
+  }
+};
+
+function loadSettingsReminderFields() {
+  renderGirlfriendReminderControls();
+};
+
+function setEffectLayerVisible(id,visible){
+  const el=document.getElementById(id);
+  if(el) el.style.display=visible ? "block" : "none";
+}
+
+function loadSettingsEffects(){
+  const e=currentProfile && currentProfile.settings && currentProfile.settings.effects
+    ? currentProfile.settings.effects : {};
+  const petals=e.petals!==false;
+  const flowers=e.flowers!==false;
+  const pt=document.getElementById("petalToggle");
+  const ft=document.getElementById("flowerToggle");
+  if(pt) pt.checked=petals;
+  if(ft) ft.checked=flowers;
+  setEffectLayerVisible("petalLayer",petals);
+  setEffectLayerVisible("flowerLayer",flowers);
+}
+
+window.toggleEffects=async function(){
+  const pt=document.getElementById("petalToggle");
+  const ft=document.getElementById("flowerToggle");
+  const petals=pt ? pt.checked : true;
+  const flowers=ft ? ft.checked : true;
+  setEffectLayerVisible("petalLayer",petals);
+  setEffectLayerVisible("flowerLayer",flowers);
+
+  if(!currentProfile.settings) currentProfile.settings={};
+  if(!currentProfile.settings.effects) currentProfile.settings.effects={};
+  currentProfile.settings.effects.petals=petals;
+  currentProfile.settings.effects.flowers=flowers;
+
+  try{
+    await db.collection("users").doc(currentUser.uid).update({
+      "settings.effects.petals":petals,
+      "settings.effects.flowers":flowers
+    });
+    showToast("YApp effects updated 🌸");
+  }catch(error){
+    console.error("Effect settings error:",error);
+    showToast("Couldn't save effect settings.");
   }
 };
 
@@ -2529,7 +2796,7 @@ function loadReminders() {
     reminders.dinner || "19:30";
 }
 
-console.log("🌸 YApp V20 EXPLICIT PARTNER LISTENER loaded successfully.");
+console.log("🌸 YApp V23 GIRLFRIEND REMINDER RULE loaded successfully.");
 </script>
 
 
