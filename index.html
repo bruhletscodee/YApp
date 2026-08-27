@@ -1,4 +1,6 @@
-<!-- YAPP VERSION: V58 - SHARED ROBUST GEMINI JSON FOR MENU + FOOD -->
+<!-- YAPP VERSION: V64 - FINAL REMINDER QA FIXES -->
+<!-- YAPP VERSION: V63 - FINAL RECHECKED FOOD AI -->
+<!-- YAPP VERSION: V62 - FOOD NUTRIENTS + CONFIDENCE FIX -->
 <!-- YAPP VERSION: V57 - IPHONE MENU JSON FIX -->
 <!-- YAPP VERSION: V40 - INSTALLABLE PWA -->
 <!-- YAPP VERSION: V33 - PETALS DETACH FROM CHERRY BLOSSOM BRANCH -->
@@ -1260,7 +1262,7 @@ COUPLE
           <div class="settings-help" id="breakfastPermissionText">Loading...</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <input id="settingsBreakfast" type="time" value="08:00" style="width:120px">
+          <input id="settingsBreakfast" type="time" value="20:00" style="width:120px">
           <label class="toggle">
             <input id="settingsBreakfastToggle" type="checkbox" checked onchange="toggleMealReminder('breakfast')">
             <span class="slider"></span>
@@ -1546,7 +1548,7 @@ window.saveProfile = async function() {
     coupleCode: code,
     reminders: {
       enabled: true,
-      breakfast: "08:00",
+      breakfast: "20:00",
       lunch: "13:00",
       dinner: "19:30"
     }
@@ -2827,7 +2829,7 @@ function renderMenuRecommendations(data) {
     '</div></div>';
 }
 
-function yappParseGeminiJSON(raw) {
+function yappParseMenuJSON(raw) {
   if (raw == null) throw new Error("Empty AI response.");
 
   let text = String(raw)
@@ -3013,7 +3015,7 @@ Be extremely concise. Return at most 10 choices. Do not add any text outside the
       result.response.text();
 
     const data =
-      yappParseGeminiJSON(raw);
+      yappParseMenuJSON(raw);
 
     if (!data.choices || !data.choices.length) {
       throw new Error("No menu items found.");
@@ -3052,6 +3054,206 @@ Be extremely concise. Return at most 10 choices. Do not add any text outside the
   }
 };
 
+
+/* =========================================================
+   V62 FOOD RESULT NORMALIZER
+   - Accepts Gemini JSON with normal or alternate field names.
+   - Guarantees every numeric nutrient field is finite.
+   - Preserves per-food confidence.
+   - Computes totals locally from foods so top-level AI totals
+     can never display as NaN.
+========================================================= */
+function normalizeFoodAIResult(data) {
+  if (typeof data === "string") {
+    data = yappParseMenuJSON(data);
+  }
+
+  if (Array.isArray(data)) {
+    data = { foods: data };
+  }
+
+  if (!data || typeof data !== "object") {
+    throw new Error("AI returned an invalid food result.");
+  }
+
+  let sourceFoods =
+    data.foods ||
+    data.items ||
+    data.results ||
+    data.foodItems ||
+    [];
+
+  if (!Array.isArray(sourceFoods)) {
+    sourceFoods = [];
+  }
+
+  const num = function(value, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n)
+      ? n
+      : (fallback || 0);
+  };
+
+  const text = function(value, fallback) {
+    if (value == null) return fallback || "";
+    return String(value);
+  };
+
+  const foods = sourceFoods
+    .filter(function(item) {
+      return item &&
+        typeof item === "object" &&
+        (
+          item.name ||
+          item.food ||
+          item.item ||
+          item.dish
+        );
+    })
+    .slice(0, 20)
+    .map(function(item) {
+      return {
+        name: text(
+          item.name ||
+          item.food ||
+          item.item ||
+          item.dish,
+          "Food"
+        ).slice(0, 120),
+
+        quantity:
+          item.quantity == null
+            ? 1
+            : item.quantity,
+
+        unit: text(
+          item.unit ||
+          item.serving ||
+          item.portion ||
+          "serving",
+          "serving"
+        ).slice(0, 40),
+
+        calories: num(
+          item.calories ??
+          item.kcal ??
+          item.energy
+        ),
+
+        protein_g: num(
+          item.protein_g ??
+          item.protein ??
+          item.proteinGrams
+        ),
+
+        carbs_g: num(
+          item.carbs_g ??
+          item.carbs ??
+          item.carbohydrates_g
+        ),
+
+        fat_g: num(
+          item.fat_g ??
+          item.fat ??
+          item.totalFat_g
+        ),
+
+        fiber_g: num(
+          item.fiber_g ??
+          item.fiber
+        ),
+
+        sugar_g: num(
+          item.sugar_g ??
+          item.sugar
+        ),
+
+        sodium_mg: num(
+          item.sodium_mg ??
+          item.sodium
+        ),
+
+        calcium_mg: num(
+          item.calcium_mg ??
+          item.calcium
+        ),
+
+        iron_mg: num(
+          item.iron_mg ??
+          item.iron
+        ),
+
+        potassium_mg: num(
+          item.potassium_mg ??
+          item.potassium
+        ),
+
+        vitamin_c_mg: num(
+          item.vitamin_c_mg ??
+          item.vitaminC ??
+          item.vitamin_c
+        ),
+
+        vitamin_a_ug: num(
+          item.vitamin_a_ug ??
+          item.vitaminA ??
+          item.vitamin_a
+        ),
+
+        vitamin_d_ug: num(
+          item.vitamin_d_ug ??
+          item.vitaminD ??
+          item.vitamin_d
+        ),
+
+        confidence: Math.min(
+          1,
+          Math.max(
+            0,
+            num(
+              item.confidence ??
+              item.confidence_score ??
+              item.certainty
+            )
+          )
+        )
+      };
+    });
+
+  if (!foods.length) {
+    throw new Error(
+      "AI returned valid JSON, but no foods were detected."
+    );
+  }
+
+  const total = function(key) {
+    return foods.reduce(function(sum, food) {
+      return sum + num(food[key]);
+    }, 0);
+  };
+
+  return {
+    foods: foods,
+    totalCalories: total("calories"),
+    totalProtein: total("protein_g"),
+    totalCarbs: total("carbs_g"),
+    totalFat: total("fat_g"),
+    totalFiber: total("fiber_g"),
+    totalSugar: total("sugar_g"),
+    totalSodium: total("sodium_mg"),
+    totalCalcium: total("calcium_mg"),
+    totalIron: total("iron_mg"),
+    totalPotassium: total("potassium_mg"),
+    totalVitaminC: total("vitamin_c_mg"),
+    totalVitaminA: total("vitamin_a_ug"),
+    totalVitaminD: total("vitamin_d_ug"),
+    explanation: text(
+      data.explanation,
+      "Nutrition values are estimates."
+    ).slice(0, 500)
+  };
+}
+
 window.analyzeFood = async function() {
   const input = document.getElementById("aiInput");
   const button = document.getElementById("aiButton");
@@ -3073,64 +3275,61 @@ window.analyzeFood = async function() {
 
   try {
     const prompt = `
-YApp fast nutrition parser.
+You are YApp's fast nutrition parser.
 
 User: "${text}"
 
-Identify foods and drinks, including Indian/international dishes and quantities.
-Estimate a normal serving when unclear.
+Identify every food or drink in the user's message, including quantities.
+Estimate a normal serving only when the quantity is unclear.
 
-Return ONLY JSON:
+Return ONLY valid JSON.
+Every object property name MUST use double quotes.
+Do not use markdown.
+Do not add commentary outside the JSON.
+
+Use exactly this compact structure:
 {
-  "foods":[
+  "foods": [
     {
-      "name":"apple",
-      "quantity":1,
-      "unit":"medium",
-      "calories":95,
-      "protein_g":0.5,
-      "carbs_g":25,
-      "fat_g":0.3,
-      "fiber_g":4.4,
-      "sugar_g":19,
-      "sodium_mg":2,
-      "calcium_mg":11,
-      "iron_mg":0.2,
-      "potassium_mg":195,
-      "vitamin_c_mg":8.4,
-      "vitamin_a_ug":6,
-      "vitamin_d_ug":0,
-      "confidence":0.95
+      "name": "apple",
+      "quantity": 1,
+      "unit": "medium",
+      "calories": 95,
+      "protein_g": 0.5,
+      "carbs_g": 25,
+      "fat_g": 0.3,
+      "fiber_g": 4.4,
+      "sugar_g": 19,
+      "sodium_mg": 2,
+      "calcium_mg": 11,
+      "iron_mg": 0.2,
+      "potassium_mg": 195,
+      "vitamin_c_mg": 8.4,
+      "vitamin_a_ug": 6,
+      "vitamin_d_ug": 0,
+      "confidence": 0.95
     }
   ],
-  "totalCalories":95,
-  "totalProtein":0.5,
-  "totalCarbs":25,
-  "totalFat":0.3,
-  "totalFiber":4.4,
-  "totalSugar":19,
-  "totalSodium":2,
-  "totalCalcium":11,
-  "totalIron":0.2,
-  "totalPotassium":195,
-  "totalVitaminC":8.4,
-  "totalVitaminA":6,
-  "totalVitaminD":0,
-  "explanation":"Typical serving estimate."
+  "explanation": "Typical serving estimate."
 }
 
-Keep the response compact.
+IMPORTANT:
+- Put ALL nutrient values inside EACH food object.
+- confidence must be a number from 0 to 1.
+- Never omit a nutrient; use 0 when appropriate.
+- Keep the response compact.
 `;
+
 
     const result = await model.generateContent(prompt);
     let raw = result.response.text().trim();
 
     raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 
-    const data = yappParseGeminiJSON(raw);
+    const data = normalizeFoodAIResult(raw);
 
     if (!data.foods || !data.foods.length) {
-      throw new Error("No food detected. Try a clearer description or photo.");
+      throw new Error("No food detected.");
     }
 
     /*
@@ -3199,13 +3398,15 @@ Keep the response compact.
             Protein: ${Number(food.protein_g).toFixed(1)}g
             · Fiber: ${Number(food.fiber_g).toFixed(1)}g<br>
             Confidence:
-            ${Math.round(Number(food.confidence) * 100)}%
+            ${Math.round(
+  Math.min(1, Math.max(0, Number(food.confidence) || 0)) * 100
+)}%
           </div>
         `).join("")}
         <br>
-        <b>Total: ${Math.round(data.totalCalories)} kcal</b><br>
-        Protein: ${Number(data.totalProtein).toFixed(1)}g
-        · Fiber: ${Number(data.totalFiber).toFixed(1)}g
+        <b>Total: ${Math.round(Number(data.totalCalories) || 0)} kcal</b><br>
+        Protein: ${(Number(data.totalProtein) || 0).toFixed(1)}g
+        · Fiber: ${(Number(data.totalFiber) || 0).toFixed(1)}g
         <br><br>
         <span class="note">${escapeHTML(data.explanation || "")}</span>
       </div>
@@ -3518,7 +3719,7 @@ function getReminderState() {
           ? girlfriend.breakfastEnabled
           : true,
       time:
-        girlfriend.breakfast || "08:00"
+        girlfriend.breakfast || "20:00"
     },
     lunch: {
       enabled:
@@ -3558,6 +3759,77 @@ function currentUserCanControlMeal(meal) {
 
   return role === "boyfriend";
 }
+
+
+window.requestReminderPermission = async function() {
+  try {
+    if (!("Notification" in window)) {
+      showToast(
+        "Notifications are not supported by this browser."
+      );
+      renderReminderControls();
+      return;
+    }
+
+    let permission =
+      Notification.permission;
+
+    if (permission !== "granted") {
+      permission =
+        await Notification.requestPermission();
+    }
+
+    if (permission === "granted") {
+      showToast("🔔 Notifications enabled.");
+      renderReminderControls();
+
+      /*
+       * Give the user an immediate test notification so they know
+       * the browser permission is actually working.
+       */
+      try {
+        new Notification(
+          "🌸 YApp notifications enabled",
+          {
+            body: "Your meal reminders can now notify you.",
+            tag: "yapp-notification-test"
+          }
+        );
+      } catch (notificationError) {
+        console.warn(
+          "Test notification could not be displayed:",
+          notificationError
+        );
+      }
+
+      return;
+    }
+
+    if (permission === "denied") {
+      showToast(
+        "🔕 Notifications are blocked. Enable them in browser settings."
+      );
+    } else {
+      showToast(
+        "Notification permission was not granted."
+      );
+    }
+
+    renderReminderControls();
+
+  } catch (error) {
+    console.error(
+      "Reminder notification permission error:",
+      error
+    );
+
+    showToast(
+      error && error.message
+        ? error.message
+        : "Could not enable notifications."
+    );
+  }
+};
 
 function renderReminderControls() {
   const state = getReminderState();
@@ -3930,10 +4202,16 @@ function playReminderRing() {
     const ctx =
       new AudioContext();
 
-    const now =
-      ctx.currentTime;
+    const startAudio =
+      ctx.state === "suspended"
+        ? ctx.resume()
+        : Promise.resolve();
 
-    [0, 0.22, 0.44].forEach(function(offset) {
+    startAudio.then(function() {
+      const now =
+        ctx.currentTime;
+
+      [0, 0.22, 0.44].forEach(function(offset) {
       const osc =
         ctx.createOscillator();
 
@@ -3964,11 +4242,14 @@ function playReminderRing() {
 
       osc.start(now + offset);
       osc.stop(now + offset + 0.2);
-    });
+      });
 
-    setTimeout(function() {
-      try { ctx.close(); } catch (e) {}
-    }, 1000);
+      setTimeout(function() {
+        try { ctx.close(); } catch (e) {}
+      }, 1000);
+    }).catch(function(error) {
+      console.warn("Reminder audio resume failed:", error);
+    });
 
   } catch (error) {
     console.warn(
@@ -4028,8 +4309,6 @@ function checkMealReminders() {
 
   const schedule =
     getEffectiveReminderSchedule();
-
-  if (!schedule.enabled) return;
 
   const now =
     new Date();
