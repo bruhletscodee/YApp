@@ -1,4 +1,3 @@
-<!-- YAPP VERSION: V59 - IPHONE FOOD AI JSON FIX -->
 <!-- YAPP VERSION: V58 - SHARED ROBUST GEMINI JSON FOR MENU + FOOD -->
 <!-- YAPP VERSION: V57 - IPHONE MENU JSON FIX -->
 <!-- YAPP VERSION: V40 - INSTALLABLE PWA -->
@@ -2896,7 +2895,7 @@ function yappParseGeminiJSON(raw) {
   } catch (_) {}
 
   throw new Error(
-    "AI could not read this food entry. Please try again."
+    "AI returned incomplete/invalid JSON. Please try the menu photo again."
   );
 }
 
@@ -3128,7 +3127,7 @@ Keep the response compact.
 
     raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 
-    const data = normalizeFoodAIResult(raw);
+    const data = yappParseGeminiJSON(raw);
 
     if (!data.foods || !data.foods.length) {
       throw new Error("No food detected. Try a clearer description or photo.");
@@ -4560,148 +4559,6 @@ async function registerYAppServiceWorker() {
 }
 
 window.addEventListener("load", registerYAppServiceWorker);
-
-
-/* =========================================================
-   V59 - FOOD AI NORMALIZER
-   Uses the same safe JSON parser but never treats a food
-   response as a menu response.
-========================================================= */
-function normalizeFoodAIResult(value) {
-  let data = value;
-
-  if (typeof data === "string") {
-    data = yappParseGeminiJSON(data);
-  }
-
-  if (Array.isArray(data)) {
-    data = { foods: data };
-  }
-
-  if (!data || typeof data !== "object") {
-    throw new Error("Food AI returned an invalid object.");
-  }
-
-  let foods =
-    data.foods ||
-    data.items ||
-    data.results ||
-    [];
-
-  if (!Array.isArray(foods)) {
-    foods = [];
-  }
-
-  foods = foods
-    .filter(function(item) {
-      return item &&
-        typeof item === "object" &&
-        (
-          item.name ||
-          item.food ||
-          item.item ||
-          item.dish
-        );
-    })
-    .slice(0, 20)
-    .map(function(item) {
-      return {
-        name: String(
-          item.name ||
-          item.food ||
-          item.item ||
-          item.dish
-        ).slice(0, 120),
-
-        calories: Number(
-          item.calories ??
-          item.kcal ??
-          item.energy ??
-          0
-        ) || 0,
-
-        protein: Number(
-          item.protein ??
-          item.protein_g ??
-          0
-        ) || 0,
-
-        carbs: Number(
-          item.carbs ??
-          item.carbs_g ??
-          0
-        ) || 0,
-
-        fat: Number(
-          item.fat ??
-          item.fat_g ??
-          0
-        ) || 0,
-
-        fiber: Number(
-          item.fiber ??
-          item.fiber_g ??
-          0
-        ) || 0,
-
-        sugar: Number(
-          item.sugar ??
-          item.sugar_g ??
-          0
-        ) || 0,
-
-        sodium: Number(
-          item.sodium ??
-          item.sodium_mg ??
-          0
-        ) || 0,
-
-        calcium: Number(
-          item.calcium ??
-          item.calcium_mg ??
-          0
-        ) || 0,
-
-        iron: Number(
-          item.iron ??
-          item.iron_mg ??
-          0
-        ) || 0,
-
-        potassium: Number(
-          item.potassium ??
-          item.potassium_mg ??
-          0
-        ) || 0,
-
-        vitaminC: Number(
-          item.vitaminC ??
-          item.vitamin_c ??
-          0
-        ) || 0,
-
-        vitaminA: Number(
-          item.vitaminA ??
-          item.vitamin_a ??
-          0
-        ) || 0,
-
-        vitaminD: Number(
-          item.vitaminD ??
-          item.vitamin_d ??
-          0
-        ) || 0
-      };
-    });
-
-  if (!foods.length) {
-    throw new Error(
-      "Food AI returned JSON, but no foods were found."
-    );
-  }
-
-  return { foods: foods };
-}
 
 </script>
 
