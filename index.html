@@ -1,14 +1,5 @@
-<!-- YAPP VERSION: V52 - GF BREAKFAST DEFAULT 20:00 + RULES GUIDE -->
-<!-- YAPP VERSION: V51 - SETTINGS CLOSE + PARTNER FOOD SYNC FIX -->
-<!-- YAPP VERSION: V50 - SHARED TEXT COUPLE RESOLUTION FIX -->
-<!-- YAPP VERSION: V49 - MENU AI JSON ROBUST FIX -->
-<!-- YAPP VERSION: V48 - REMINDERS FULLY FIXED -->
-<!-- YAPP VERSION: V47 - SHARED TEXT FIRESTORE COMPAT SYNC FIX -->
-<!-- YAPP VERSION: V46 - DEDICATED REMINDER BUTTON -->
-<!-- YAPP VERSION: V45 - PINK SHARED TEXT -->
-<!-- YAPP VERSION: V44 - SHARED SYNCED TEXT -->
-<!-- YAPP VERSION: V43 - REMINDER BUTTON FIX -->
-<!-- YAPP VERSION: V41 - IOS SAFE GEMINI JSON -->
+<!-- YAPP VERSION: V57 - IPHONE MENU JSON FIX -->
+<!-- YAPP VERSION: V40 - INSTALLABLE PWA -->
 <!-- YAPP VERSION: V33 - PETALS DETACH FROM CHERRY BLOSSOM BRANCH -->
 <!-- YAPP VERSION: V32 - CHERRY BRANCH CANOPY + PETAL FALL -->
 <!-- YAPP VERSION: V31 - INDIVIDUAL REMINDER CONTROLS -->
@@ -683,52 +674,6 @@ textarea:focus{
 </head>
 
 <body>
-<section id="sharedTextCard" class="card" style="
-  margin:12px auto 14px;
-  max-width:760px;
-  padding:16px;
-  border-radius:20px;
-  background:linear-gradient(135deg,#fff0f6,#ffe3ed);
-  border:1px solid #f3c4d5;
-  box-shadow:0 8px 24px rgba(200,79,125,.10);
-">
-  <div style="font-weight:750;font-size:16px;margin-bottom:6px;color:#b64b73;">
-    💌 Shared space
-  </div>
-
-  <div style="font-size:12px;color:#b06f88;margin-bottom:9px;">
-    Write something here — both partners see it instantly.
-  </div>
-
-  <textarea
-    id="sharedCoupleText"
-    placeholder="Write a note, message, reminder, or anything for your partner…"
-    rows="3"
-    maxlength="2000"
-    style="
-      width:100%;
-      box-sizing:border-box;
-      resize:vertical;
-      border:1px solid #efb7ca;
-      border-radius:15px;
-      padding:11px 12px;
-      font:inherit;
-      background:#fff7fb;
-      color:#8f3e60;
-      outline:none;
-      box-shadow:inset 0 1px 3px rgba(180,70,110,.06);
-    "
-  ></textarea>
-
-  <div id="sharedTextStatus" style="
-    font-size:11px;
-    color:#b4778d;
-    margin-top:7px;
-  ">
-    Connect with your partner to sync this space.
-  </div>
-</section>
-
 <!-- Petals are spawned around the branch and fall downward -->
 <div class="petal-fall-layer" id="petalLayer" aria-hidden="true"></div>
 
@@ -870,7 +815,6 @@ Eat better, together.
 
 <div style="display:flex;gap:8px;align-items:center">
 <button class="settings-btn" onclick="openSettings()" aria-label="Open settings">⚙️</button>
-<button class="settings-btn" onclick="openMealReminders()" aria-label="Open reminders">⏰</button>
 <button class="logout" onclick="logout()">Log out</button>
 </div>
 
@@ -1267,7 +1211,7 @@ COUPLE
         <div class="logo">⚙️ YApp Settings</div>
         <div class="sub">Customize your couple tracker and YApp.</div>
       </div>
-      <button id="settingsCloseButton" class="close-settings" type="button" aria-label="Close settings">×</button>
+      <button class="close-settings" onclick="closeSettings()">×</button>
     </div>
 
     <div class="settings-section">
@@ -1302,7 +1246,7 @@ COUPLE
         </select>
       </div>
     </div>
-    <div id="mealReminderSection" class="settings-section">
+    <div class="settings-section">
       <h2>⏰ Meal reminders</h2>
 
       <div class="settings-help" id="reminderRoleHelp" style="margin-bottom:10px">
@@ -1315,7 +1259,7 @@ COUPLE
           <div class="settings-help" id="breakfastPermissionText">Loading...</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <input id="settingsBreakfast" type="time" value="20:00" style="width:120px">
+          <input id="settingsBreakfast" type="time" value="08:00" style="width:120px">
           <label class="toggle">
             <input id="settingsBreakfastToggle" type="checkbox" checked onchange="toggleMealReminder('breakfast')">
             <span class="slider"></span>
@@ -1445,15 +1389,6 @@ let unsubscribePartner = null;
 let unsubscribeCouple = null;
 let renderPartnerGoal = 1800;
 
-/*
- * iOS/PWA AUTH PERSISTENCE FIX
- *
- * Safari can restore Firebase Auth a little later than the page loads.
- * We explicitly use LOCAL persistence and wait for it before deciding
- * that the user is logged out.
- */
-let authPersistenceReady = Promise.resolve();
-
 /* -------------------------
    Firebase bootstrap
 ------------------------- */
@@ -1465,21 +1400,6 @@ try {
   app = firebase.initializeApp(firebaseConfig);
   auth = firebase.auth();
   db = firebase.firestore();
-
-  /*
-   * Force Firebase Auth to keep the login locally.
-   * This is especially important for iPhone Safari/PWA.
-   */
-  authPersistenceReady = auth.setPersistence(
-    firebase.auth.Auth.Persistence.LOCAL
-  ).then(function() {
-    console.log("🌸 YApp iOS LOCAL auth persistence ready.");
-  }).catch(function(error) {
-    console.warn(
-      "🌸 Could not set LOCAL auth persistence:",
-      error
-    );
-  });
 
   console.log("🌸 YApp Firebase ready.");
 } catch (error) {
@@ -1554,12 +1474,7 @@ window.signup = async function() {
   }
 
   try {
-    await authPersistenceReady;
-
-    await auth.createUserWithEmailAndPassword(
-      email,
-      password
-    );
+    await auth.createUserWithEmailAndPassword(email, password);
     showToast("Account created 🌸");
   } catch (error) {
     console.error("Signup error:", error);
@@ -1582,12 +1497,7 @@ window.login = async function() {
   }
 
   try {
-    await authPersistenceReady;
-
-    await auth.signInWithEmailAndPassword(
-      email,
-      password
-    );
+    await auth.signInWithEmailAndPassword(email, password);
   } catch (error) {
     console.error("Login error:", error);
     showToast(error.message || "Login failed.");
@@ -1635,7 +1545,7 @@ window.saveProfile = async function() {
     coupleCode: code,
     reminders: {
       enabled: true,
-      breakfast: "20:00",
+      breakfast: "08:00",
       lunch: "13:00",
       dinner: "19:30"
     }
@@ -1664,35 +1574,15 @@ window.saveProfile = async function() {
 ------------------------- */
 if (auth) {
   auth.onAuthStateChanged(async function(user) {
-    /*
-     * IMPORTANT:
-     * On iOS Safari/PWA the first auth callback can arrive before
-     * Firebase has finished restoring LOCAL persistence.
-     */
-    await authPersistenceReady;
-
-    /*
-     * Re-read currentUser after persistence restoration.
-     */
-    user = user || auth.currentUser || null;
     currentUser = user;
 
     if (!user) {
-      console.log("🌸 No saved YApp login found.");
       showPage("auth");
       return;
     }
 
-    console.log(
-      "🌸 YApp login restored:",
-      user.uid
-    );
-
     try {
-      const snap =
-        await db.collection("users")
-          .doc(user.uid)
-          .get();
+      const snap = await db.collection("users").doc(user.uid).get();
 
       if (!snap.exists) {
         showPage("profile");
@@ -1701,23 +1591,8 @@ if (auth) {
         startApp();
       }
     } catch (error) {
-      console.error(
-        "Profile load error:",
-        error
-      );
-
-      /*
-       * Do NOT sign the user out because Firestore temporarily
-       * failed. Keep the Firebase session intact.
-       */
-      if (auth.currentUser) {
-        currentUser = auth.currentUser;
-      }
-
-      showToast(
-        error.message ||
-        "Could not load your profile."
-      );
+      console.error("Profile load error:", error);
+      showToast(error.message || "Could not load your profile.");
     }
   });
 }
@@ -1855,10 +1730,6 @@ async function startApp() {
    */
   listenToPartnerMeals();
   listenToCoupleChanges();
-
-  if (typeof startSharedTextSync === "function") {
-    startSharedTextSync();
-  }
 }
 
 /* -------------------------
@@ -2231,12 +2102,6 @@ async function resolvePartnerFromCouple() {
 
     loadSettingsReminderFields();
 
-    if (typeof startSharedTextSync === "function") {
-      setTimeout(startSharedTextSync, 100);
-    }
-
-    listenToPartnerMeals();
-
     console.log(
       "🌸 V26 PARTNER RESOLVED:",
       partnerName,
@@ -2296,172 +2161,120 @@ function listenToCoupleChanges() {
 
 function listenToPartnerMeals() {
   console.log(
-    "🌸 V51 PARTNER FOOD LISTENER:",
-    "couple =", currentProfile && currentProfile.coupleId,
-    "| partner =", currentProfile && currentProfile.partnerId,
-    "| me =", currentUser && currentUser.uid
+    "🌸 V20 PARTNER LISTENER CALLED",
+    "| couple:",
+    currentProfile && currentProfile.coupleId,
+    "| partner:",
+    currentProfile && currentProfile.partnerId,
+    "| user:",
+    currentUser && currentUser.uid
   );
 
   if (unsubscribePartner) {
-    try { unsubscribePartner(); } catch (e) {}
+    unsubscribePartner();
     unsubscribePartner = null;
   }
 
-  if (!currentProfile || !currentUser || !db) {
+  if (!currentProfile || !currentProfile.coupleId || !currentUser) {
     return;
   }
 
-  const partnerId =
-    currentProfile.partnerId || null;
-
-  const coupleId =
-    currentProfile.coupleId || null;
+  const coupleId = currentProfile.coupleId;
+  const myUid = currentUser.uid;
 
   /*
-   * Prefer the partner's UID query.
-   *
-   * This is important because Firestore security rules can safely allow:
-   * "a user may read their partner's food logs"
-   * using a userId == partnerId query.
-   *
-   * The older coupleId query can be blocked by stricter rules even though
-   * the user is correctly connected.
+   * V18 listens to the canonical couple only.
    */
-  if (partnerId) {
-    const partnerQuery =
-      db.collection("foodLogs")
-        .where("userId", "==", partnerId);
+  const q = db.collection("foodLogs")
+    .where("coupleId", "==", coupleId);
 
-    unsubscribePartner =
-      partnerQuery.onSnapshot(
-        function(snapshot) {
-          const partnerMeals = [];
+  unsubscribePartner = q.onSnapshot(
+    function(snapshot) {
+      const partnerMeals = [];
+      const myMeals = [];
+      const unknownMeals = [];
 
-          snapshot.forEach(function(docSnap) {
-            partnerMeals.push({
-              id: docSnap.id,
-              ...docSnap.data()
-            });
-          });
+      snapshot.forEach(function(item) {
+        const data = item.data() || {};
+        const meal = {
+          id: item.id,
+          ...data
+        };
 
-          const todayMeals =
-            partnerMeals.filter(function(meal) {
-              return localDateFromMeal(meal) === today();
-            });
+        if (data.userId === myUid) {
+          myMeals.push(meal);
+        } else {
+          partnerMeals.push(meal);
+        }
+      });
 
-          window.__partnerMeals =
-            todayMeals.slice();
+      /*
+       * Find the partner from the canonical couple document if possible.
+       * This keeps the UI correct even when partnerId is stale.
+       */
+      db.collection("couples").doc(coupleId).get()
+        .then(function(coupleSnap) {
+          if (coupleSnap.exists) {
+            const members = Array.isArray(coupleSnap.data().members)
+              ? coupleSnap.data().members
+              : [];
+
+            const partnerId =
+              members.find(uid => uid !== myUid) || null;
+
+            if (partnerId) {
+              currentProfile.partnerId = partnerId;
+            }
+          }
+
+          /*
+           * Filter by the resolved partner UID when it is available.
+           */
+          const resolvedPartnerId = currentProfile.partnerId || null;
+
+          const filteredPartnerMeals = resolvedPartnerId
+            ? partnerMeals.filter(m => m.userId === resolvedPartnerId)
+            : partnerMeals;
+
+          window.__partnerMeals = filteredPartnerMeals.slice();
 
           console.log(
-            "🌸 V51 PARTNER FOOD BY UID:",
-            todayMeals.length,
-            "| partner:", partnerId,
+            "🌸 V18 COUPLE FOOD:",
+            "you:", myMeals.length,
+            "| partner:", filteredPartnerMeals.length,
+            "| unknown:", unknownMeals.length,
+            "| total:", snapshot.size,
             "| couple:", coupleId
           );
 
-          renderPartnerMeals(
-            todayMeals
+          renderPartnerMeals(filteredPartnerMeals);
+        })
+        .catch(function(error) {
+          console.error("V18 couple member lookup:", error);
+
+          window.__partnerMeals = partnerMeals.slice();
+
+          console.log(
+            "🌸 V18 COUPLE FOOD fallback:",
+            "you:", myMeals.length,
+            "| partner:", partnerMeals.length,
+            "| total:", snapshot.size,
+            "| couple:", coupleId
           );
-        },
-        function(error) {
-          console.error(
-            "V51 partner UID food listener failed:",
-            error
-          );
 
-          /*
-           * Fallback to the canonical couple query if the project rules
-           * permit that route.
-           */
-          if (coupleId) {
-            const fallbackQuery =
-              db.collection("foodLogs")
-                .where(
-                  "coupleId",
-                  "==",
-                  coupleId
-                );
-
-            unsubscribePartner =
-              fallbackQuery.onSnapshot(
-                function(snapshot) {
-                  const meals = [];
-
-                  snapshot.forEach(function(docSnap) {
-                    const data =
-                      docSnap.data() || {};
-
-                    if (
-                      data.userId !== currentUser.uid
-                    ) {
-                      meals.push({
-                        id: docSnap.id,
-                        ...data
-                      });
-                    }
-                  });
-
-                  const todayMeals =
-                    meals.filter(function(meal) {
-                      return (
-                        localDateFromMeal(meal) ===
-                        today()
-                      );
-                    });
-
-                  window.__partnerMeals =
-                    todayMeals.slice();
-
-                  console.log(
-                    "🌸 V51 PARTNER FOOD COUPLE FALLBACK:",
-                    todayMeals.length
-                  );
-
-                  renderPartnerMeals(
-                    todayMeals
-                  );
-                },
-                function(fallbackError) {
-                  console.error(
-                    "V51 partner food fallback failed:",
-                    fallbackError
-                  );
-
-                  showToast(
-                    "Could not sync partner food: " +
-                    (
-                      fallbackError.code ||
-                      fallbackError.message ||
-                      "permission-denied"
-                    )
-                  );
-                }
-              );
-          } else {
-            showToast(
-              "Partner food sync needs an active connection."
-            );
-          }
-        }
+          renderPartnerMeals(partnerMeals);
+        });
+    },
+    function(error) {
+      console.error("V18 partner realtime listener:", error);
+      showToast(
+        "Could not sync partner food: " +
+        (error.code || error.message)
       );
-
-    return;
-  }
-
-  /*
-   * No partnerId yet: try to resolve the couple, then retry.
-   */
-  resolvePartnerFromCouple()
-    .then(function() {
-      listenToPartnerMeals();
-    })
-    .catch(function(error) {
-      console.error(
-        "V51 partner resolution before food sync:",
-        error
-      );
-    });
+    }
+  );
 }
+
 
 /* -------------------------
    Partner tracker controls
@@ -2856,12 +2669,12 @@ async function initAI() {
       aiModule.getGenerativeModel(ai, {
         model: "gemini-3.5-flash-lite",
         generationConfig: {
-          maxOutputTokens: 1200,
+          maxOutputTokens: 800,
           responseMimeType: "application/json"
         }
       });
 
-    console.log("🌸 YApp Gemini ready - V41 iOS-safe JSON.");
+    console.log("🌸 YApp Gemini ready.");
   } catch (error) {
     console.warn("YApp AI unavailable; login will continue to work.", error);
     model = null;
@@ -2870,218 +2683,6 @@ async function initAI() {
 
 initAI();
 
-
-function parseGeminiJSON(rawText) {
-  if (typeof rawText !== "string") {
-    throw new Error("AI returned no text.");
-  }
-
-  let raw =
-    rawText
-      .replace(/^\uFEFF/, "")
-      .trim();
-
-  raw =
-    raw
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-
-  const first =
-    raw.indexOf("{");
-
-  const last =
-    raw.lastIndexOf("}");
-
-  if (first < 0 || last <= first) {
-    throw new Error(
-      "AI menu picker returned no complete JSON object."
-    );
-  }
-
-  raw =
-    raw.slice(
-      first,
-      last + 1
-    );
-
-  try {
-    return JSON.parse(raw);
-
-  } catch (firstError) {
-    console.warn(
-      "V49 first JSON parse failed:",
-      firstError.message
-    );
-  }
-
-  /*
-   * Repair literal control characters inside JSON strings,
-   * trailing commas, and unquoted property names.
-   */
-  let repaired = "";
-  let inString = false;
-  let escaped = false;
-
-  for (
-    let i = 0;
-    i < raw.length;
-    i++
-  ) {
-    const ch = raw[i];
-
-    if (escaped) {
-      repaired += ch;
-      escaped = false;
-      continue;
-    }
-
-    if (ch === "\\" && inString) {
-      repaired += ch;
-      escaped = true;
-      continue;
-    }
-
-    if (ch === '"') {
-      repaired += ch;
-      inString = !inString;
-      continue;
-    }
-
-    if (inString) {
-      if (ch === "\n") {
-        repaired += "\\n";
-      } else if (ch === "\r") {
-        repaired += "\\r";
-      } else if (ch === "\t") {
-        repaired += "\\t";
-      } else if (
-        ch.charCodeAt(0) < 32
-      ) {
-        repaired += " ";
-      } else {
-        repaired += ch;
-      }
-    } else {
-      repaired += ch;
-    }
-  }
-
-  repaired =
-    repaired.replace(
-      /,\s*([}\]])/g,
-      "$1"
-    );
-
-  repaired =
-    repaired.replace(
-      /([{,]\s*)([A-Za-z_$][A-Za-z0-9_$-]*)\s*:/g,
-      '$1"$2":'
-    );
-
-  repaired =
-    repaired.replace(
-      /([{,]\s*)'([^']+)'\s*:/g,
-      '$1"$2":'
-    );
-
-  try {
-    return JSON.parse(repaired);
-
-  } catch (secondError) {
-    console.error(
-      "Gemini raw response:",
-      rawText
-    );
-
-    console.error(
-      "Gemini repaired JSON:",
-      repaired
-    );
-
-    /*
-     * Recover only complete choice objects from a truncated menu
-     * response. Never invent a partial menu item.
-     */
-    const recovered = [];
-
-    const choicesKey =
-      repaired.indexOf('"choices"');
-
-    if (choicesKey >= 0) {
-      const arrayStart =
-        repaired.indexOf(
-          "[",
-          choicesKey
-        );
-
-      if (arrayStart >= 0) {
-        let depth = 0;
-        let objectStart = -1;
-
-        for (
-          let i = arrayStart + 1;
-          i < repaired.length;
-          i++
-        ) {
-          const ch = repaired[i];
-
-          if (ch === "{") {
-            if (depth === 0) {
-              objectStart = i;
-            }
-            depth++;
-          }
-
-          if (ch === "}") {
-            depth--;
-
-            if (
-              depth === 0 &&
-              objectStart >= 0
-            ) {
-              const objectText =
-                repaired.slice(
-                  objectStart,
-                  i + 1
-                );
-
-              try {
-                const choice =
-                  JSON.parse(objectText);
-
-                if (
-                  choice &&
-                  typeof choice.name === "string" &&
-                  Number.isFinite(
-                    Number(choice.calories)
-                  )
-                ) {
-                  recovered.push(choice);
-                }
-              } catch (ignore) {}
-
-              objectStart = -1;
-            }
-          }
-        }
-      }
-    }
-
-    if (recovered.length) {
-      return {
-        choices:
-          recovered.slice(0, 10),
-        note:
-          "The AI response ended early, so YApp recovered the complete menu choices."
-      };
-    }
-
-    throw new Error(
-      "AI menu picker returned incomplete or invalid JSON."
-    );
-  }
-}
 
 async function fileToGenerativePart(file) {
   const base64 =
@@ -3225,6 +2826,78 @@ function renderMenuRecommendations(data) {
     '</div></div>';
 }
 
+function yappParseMenuJSON(raw) {
+  if (raw == null) throw new Error("Empty AI response.");
+
+  let text = String(raw)
+    .replace(/^\uFEFF/, "")
+    .trim();
+
+  // Gemini may wrap JSON in markdown fences.
+  text = text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  // Never try to JSON.parse an API error message.
+  if (/quota|rate.?limit|429|resource.?exhausted|permission.?denied|unauthenticated/i.test(text)) {
+    throw new Error(text.slice(0, 500));
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (_) {}
+
+  // Extract the first complete JSON object while respecting quoted strings.
+  const start = text.indexOf("{");
+  if (start >= 0) {
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') quoted = false;
+        continue;
+      }
+
+      if (ch === '"') {
+        quoted = true;
+        continue;
+      }
+
+      if (ch === "{") depth++;
+      if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const candidate = text.slice(start, i + 1);
+          try { return JSON.parse(candidate); } catch (_) {}
+          break;
+        }
+      }
+    }
+  }
+
+  // Repair the common cases produced by mobile/web models.
+  let repaired = text
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/,\s*([}\]])/g, "$1")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, " ");
+
+  try {
+    return JSON.parse(repaired);
+  } catch (_) {}
+
+  throw new Error(
+    "AI returned incomplete/invalid JSON. Please try the menu photo again."
+  );
+}
+
 window.analyzeMenuPhoto = async function() {
   const input =
     document.getElementById("menuPhotoInput");
@@ -3293,7 +2966,7 @@ Vitamin D: ${snapshot.remaining.vitaminD.toFixed(1)} µg
 
 Find menu items that are actually visible in the image.
 
-Rank the best available choices from 1 to 10. Use fewer than 10 if fewer are clearly visible.
+Rank the best available choices from 1 to 10 (maximum 10).
 Favor options that fit the remaining calories and help fill nutrient gaps.
 Penalize choices that exceed the remaining calorie budget or are very high in sodium/sugar/fat when better choices exist.
 You may recommend a reasonable smaller/larger portion if useful.
@@ -3311,19 +2984,22 @@ Return ONLY JSON:
       "carbs_g": 50,
       "fat_g": 12,
       "fiber_g": 8,
+      "sugar_g": 6,
+      "sodium_mg": 700,
+      "calcium_mg": 120,
+      "iron_mg": 3,
+      "potassium_mg": 600,
+      "vitamin_c_mg": 30,
+      "vitamin_a_ug": 250,
+      "vitamin_d_ug": 1,
       "calories_left_after": 950,
-      "reason": "Fits calories and helps your nutrient balance."
+      "reason": "Fits the calorie budget and improves the day's protein and fiber balance."
     }
   ],
   "note": "Portions and nutrition are estimates from the menu photo."
 }
 
-Return ONLY one valid JSON object.
-Use double quotes around every property name.
-Do not use markdown fences.
-Keep every string on one line.
-Keep each reason under 100 characters.
-Use at most 10 choices.
+Be extremely concise. Return at most 10 choices. Do not add any text outside the JSON.
 `;
 
     const result =
@@ -3333,16 +3009,10 @@ Use at most 10 choices.
       ]);
 
     let raw =
-      result.response.text().trim();
-
-    raw =
-      raw
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
+      result.response.text();
 
     const data =
-      parseGeminiJSON(raw);
+      yappParseMenuJSON(raw);
 
     if (!data.choices || !data.choices.length) {
       throw new Error("No menu items found.");
@@ -3355,18 +3025,26 @@ Use at most 10 choices.
   } catch (error) {
     console.error("Menu AI error:", error);
 
+    const errorText =
+      error && error.message
+        ? String(error.message)
+        : "";
+
+    const friendlyError =
+      /429|quota|rate.?limit|resource.?exhausted/i.test(errorText)
+        ? "⚠️ Gemini AI limit reached. Please wait and try again later."
+        : errorText || "Could not analyze this menu.";
+
     if (resultBox) {
       resultBox.innerHTML =
         '<div class="ai-result">⚠️ ' +
         escapeHTML(
-          error && error.message
-            ? error.message
-            : "Could not analyze this menu."
+          friendlyError
         ) +
         '</div>';
     }
 
-    showToast(error && error.message ? "AI: " + error.message : "Menu analysis failed.");
+    showToast("Menu analysis failed.");
   } finally {
     button.disabled = false;
     button.textContent = "📸 Analyze Menu";
@@ -3440,7 +3118,7 @@ Return ONLY JSON:
   "explanation":"Typical serving estimate."
 }
 
-Keep the response compact. Keep every string short. Do not use newlines inside string values.
+Keep the response compact.
 `;
 
     const result = await model.generateContent(prompt);
@@ -3448,7 +3126,7 @@ Keep the response compact. Keep every string short. Do not use newlines inside s
 
     raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 
-    const data = parseGeminiJSON(raw);
+    const data = JSON.parse(raw);
 
     if (!data.foods || !data.foods.length) {
       throw new Error("No food detected.");
@@ -3545,7 +3223,7 @@ Keep the response compact. Keep every string short. Do not use newlines inside s
         )}
       </div>
     `;
-    showToast(error && error.message ? "AI: " + error.message : "AI analysis failed.");
+    showToast("AI analysis failed.");
   } finally {
     button.disabled = false;
     button.textContent = "✨ Analyze & Add";
@@ -3607,7 +3285,6 @@ window.connectPartner = async function() {
 
       if (input) input.value = "";
       showToast("Already connected ❤️");
-    if (typeof startSharedTextSync === "function") startSharedTextSync();
       return;
     }
 
@@ -3661,7 +3338,6 @@ window.connectPartner = async function() {
     listenToCoupleChanges();
 
     showToast("❤️ Partner connected!");
-    if (typeof startSharedTextSync === "function") startSharedTextSync();
 
   } catch (error) {
     console.error("V24 connect partner error:", error);
@@ -3742,9 +3418,6 @@ window.openSettings = function(){
   const modal=document.getElementById("settingsModal");
   if(!modal) return;
   modal.classList.add("show");
-  modal.style.display = "flex";
-  modal.setAttribute("aria-hidden","false");
-  document.body.classList.add("settings-open");
 
   const code=currentProfile && currentProfile.coupleCode ? currentProfile.coupleCode : "------";
   const codeEl=document.getElementById("settingsMyCode");
@@ -3768,14 +3441,7 @@ window.openSettings = function(){
 
 window.closeSettings=function(){
   const modal=document.getElementById("settingsModal");
-
-  if (!modal) return;
-
-  modal.classList.remove("show");
-  modal.style.display = "none";
-  modal.setAttribute("aria-hidden","true");
-
-  document.body.classList.remove("settings-open");
+  if(modal) modal.classList.remove("show");
 };
 
 window.copyCoupleCode=async function(){
@@ -3851,7 +3517,7 @@ function getReminderState() {
           ? girlfriend.breakfastEnabled
           : true,
       time:
-        girlfriend.breakfast || "20:00"
+        girlfriend.breakfast || "08:00"
     },
     lunch: {
       enabled:
@@ -3891,44 +3557,6 @@ function currentUserCanControlMeal(meal) {
 
   return role === "boyfriend";
 }
-
-window.requestReminderPermission = async function() {
-  try {
-    if (!("Notification" in window)) {
-      showToast(
-        "Notifications are not supported by this browser."
-      );
-      renderReminderControls();
-      return;
-    }
-
-    const permission =
-      await Notification.requestPermission();
-
-    if (permission === "granted") {
-      showToast("🔔 Notifications enabled.");
-      startReminderEngine();
-    } else if (permission === "denied") {
-      showToast(
-        "🔕 Notifications are blocked. Enable them in browser/site settings."
-      );
-    } else {
-      showToast("Notification permission was not granted.");
-    }
-
-    renderReminderControls();
-
-  } catch (error) {
-    console.error(
-      "Reminder notification permission error:",
-      error
-    );
-
-    showToast(
-      "Could not enable notifications."
-    );
-  }
-};
 
 function renderReminderControls() {
   const state = getReminderState();
@@ -4219,28 +3847,35 @@ function getEffectiveReminderSchedule() {
   const state =
     getReminderState();
 
+  const role =
+    getCurrentUserRoleFromTracker();
+
   /*
-   * Each meal has its own time and enabled state.
+   * Each person's UI gets the same shared schedule,
+   * but controls differ by role.
    *
-   * Girlfriend:
-   *   breakfast switch is hers.
-   *   lunch/dinner remain controlled by the boyfriend.
+   * Girlfriend can switch breakfast OFF, but lunch/dinner
+   * remain effective ON because she cannot toggle them.
    *
-   * Boyfriend:
-   *   can independently control all three.
+   * Boyfriend can switch any meal independently.
    */
   return {
     breakfast: {
       time: state.breakfast.time,
-      enabled: state.breakfast.enabled !== false
+      enabled:
+        role === "girlfriend"
+          ? state.breakfast.enabled !== false
+          : state.breakfast.enabled !== false
     },
     lunch: {
       time: state.lunch.time,
-      enabled: state.lunch.enabled !== false
+      enabled:
+        state.lunch.enabled !== false
     },
     dinner: {
       time: state.dinner.time,
-      enabled: state.dinner.enabled !== false
+      enabled:
+        state.dinner.enabled !== false
     }
   };
 }
@@ -4393,6 +4028,8 @@ function checkMealReminders() {
   const schedule =
     getEffectiveReminderSchedule();
 
+  if (!schedule.enabled) return;
+
   const now =
     new Date();
 
@@ -4418,17 +4055,8 @@ function checkMealReminders() {
 
   meals.forEach(function(item) {
     const type = item[0];
-    const meal = item[1];
-
-    if (!meal || meal.enabled === false) {
-      return;
-    }
-
-    const time =
-      meal.time || "";
-
-    const key =
-      type + "@" + time;
+    const time = item[1];
+    const key = type + "@" + time;
 
     if (
       time === currentTime &&
@@ -4436,11 +4064,7 @@ function checkMealReminders() {
     ) {
       fireState[key] = true;
       saveReminderFireState(fireState);
-
-      fireMealReminder(
-        type,
-        time
-      );
+      fireMealReminder(type, time);
     }
   });
 }
@@ -4935,486 +4559,6 @@ async function registerYAppServiceWorker() {
 
 window.addEventListener("load", registerYAppServiceWorker);
 
-
-/* =========================================================
-   V43 REMINDER BUTTON FIX
-========================================================= */
-(function initReminderButtonFix() {
-  window.openMealReminders = function() {
-    const modal = document.getElementById("settingsModal");
-
-    if (!modal) {
-      showToast("Settings are not available.");
-      return;
-    }
-
-    modal.classList.add("show");
-    modal.style.display = "flex";
-
-    const section =
-      document.getElementById("mealReminderSection");
-
-    if (section) {
-      setTimeout(function() {
-        section.scrollIntoView({
-          behavior: "smooth",
-          block: "start"
-        });
-      }, 80);
-    }
-
-    if (typeof loadSettingsReminderFields === "function") {
-      setTimeout(loadSettingsReminderFields, 50);
-    }
-  };
-
-  window.openReminderSettings =
-    window.openMealReminders;
-
-  console.log(
-    "🌸 V46 reminder button ready."
-  );
-})();;
-
-
-/* =========================================================
-   V47 SHARED COUPLE TEXT - COMPAT FIRESTORE FIX
-   Uses the SAME Firebase compat Firestore instance as YApp.
-========================================================= */
-let sharedTextUnsubscribe = null;
-let sharedTextSaveTimer = null;
-let sharedTextLastLocalValue = "";
-
-function getSharedCoupleId() {
-  return (
-    currentProfile &&
-    currentProfile.coupleId
-  ) || "";
-}
-
-function renderSharedText(value, status) {
-  const box =
-    document.getElementById("sharedCoupleText");
-
-  const state =
-    document.getElementById("sharedTextStatus");
-
-  if (box && document.activeElement !== box) {
-    box.value =
-      typeof value === "string"
-        ? value
-        : "";
-  }
-
-  if (state && status) {
-    state.textContent = status;
-  }
-}
-
-function stopSharedTextSync() {
-  if (sharedTextUnsubscribe) {
-    try {
-      sharedTextUnsubscribe();
-    } catch (error) {
-      console.warn(
-        "Shared text unsubscribe:",
-        error
-      );
-    }
-
-    sharedTextUnsubscribe = null;
-  }
-}
-
-async function resolveSharedTextCoupleId() {
-  if (!currentUser || !db || !currentProfile) {
-    return null;
-  }
-
-  /*
-   * First try the ID already stored on the profile.
-   */
-  let coupleId =
-    currentProfile.coupleId || null;
-
-  if (coupleId) {
-    try {
-      const snap =
-        await db.collection("couples")
-          .doc(coupleId)
-          .get();
-
-      if (snap.exists) {
-        return coupleId;
-      }
-    } catch (error) {
-      console.warn(
-        "V50 couple ID check:",
-        error
-      );
-    }
-  }
-
-  /*
-   * The profile may have an old/internal ID while the human couple
-   * code still points to the real couple document.
-   */
-  const humanCode =
-    (
-      currentProfile.coupleCode ||
-      currentProfile.code ||
-      ""
-    )
-      .trim()
-      .toUpperCase();
-
-  if (humanCode) {
-    try {
-      const querySnap =
-        await db.collection("couples")
-          .where("code", "==", humanCode)
-          .limit(1)
-          .get();
-
-      if (!querySnap.empty) {
-        const realDoc =
-          querySnap.docs[0];
-
-        coupleId =
-          realDoc.id;
-
-        currentProfile.coupleId =
-          coupleId;
-
-        const data =
-          realDoc.data() || {};
-
-        const members =
-          Array.isArray(data.members)
-            ? data.members.filter(Boolean)
-            : [];
-
-        const partnerId =
-          members.find(
-            function(uid) {
-              return uid !== currentUser.uid;
-            }
-          ) || null;
-
-        if (partnerId) {
-          currentProfile.partnerId =
-            partnerId;
-        }
-
-        /*
-         * Keep the local profile in sync. This is best-effort.
-         */
-        try {
-          await db.collection("users")
-            .doc(currentUser.uid)
-            .update({
-              coupleId: coupleId,
-              partnerId:
-                currentProfile.partnerId || null,
-              coupleCode:
-                data.code || humanCode
-            });
-        } catch (error) {
-          console.warn(
-            "V50 profile couple repair skipped:",
-            error
-          );
-        }
-
-        console.log(
-          "🌸 V50 resolved shared-text couple:",
-          coupleId
-        );
-
-        return coupleId;
-      }
-    } catch (error) {
-      console.error(
-        "V50 human couple-code lookup:",
-        error
-      );
-    }
-  }
-
-  /*
-   * Last attempt: use the existing canonical normalization.
-   */
-  try {
-    const normalized =
-      await normalizeCurrentCouple();
-
-    if (normalized) {
-      const snap =
-        await db.collection("couples")
-          .doc(normalized)
-          .get();
-
-      if (snap.exists) {
-        return normalized;
-      }
-    }
-  } catch (error) {
-    console.warn(
-      "V50 normalize couple fallback:",
-      error
-    );
-  }
-
-  return null;
-}
-
-function startSharedTextSync() {
-  stopSharedTextSync();
-
-  const box =
-    document.getElementById(
-      "sharedCoupleText"
-    );
-
-  if (!box) {
-    console.warn(
-      "V50 shared text box not found."
-    );
-    return;
-  }
-
-  /*
-   * Resolve the real couple document BEFORE attaching onSnapshot.
-   * This prevents the "Couple record not found" message caused by an
-   * old/stale coupleId.
-   */
-  resolveSharedTextCoupleId()
-    .then(function(coupleId) {
-      if (
-        !coupleId ||
-        !currentUser ||
-        !db
-      ) {
-        renderSharedText(
-          "",
-          "🔗 Connect with your partner to sync this space."
-        );
-        return;
-      }
-
-      const coupleRef =
-        db.collection("couples")
-          .doc(coupleId);
-
-      sharedTextUnsubscribe =
-        coupleRef.onSnapshot(
-          function(snapshot) {
-            if (!snapshot.exists) {
-              /*
-               * Do one final profile/code resolution rather than leaving
-               * the user stuck on "Couple record not found."
-               */
-              resolveSharedTextCoupleId()
-                .then(function(retryId) {
-                  if (
-                    retryId &&
-                    retryId !== coupleId
-                  ) {
-                    startSharedTextSync();
-                  } else {
-                    renderSharedText(
-                      "",
-                      "⚠️ Couple record not found."
-                    );
-                  }
-                });
-
-              return;
-            }
-
-            const data =
-              snapshot.data() || {};
-
-            const value =
-              typeof data.sharedText === "string"
-                ? data.sharedText
-                : "";
-
-            if (
-              document.activeElement !== box
-            ) {
-              box.value =
-                value;
-            }
-
-            sharedTextLastLocalValue =
-              value;
-
-            const state =
-              document.getElementById(
-                "sharedTextStatus"
-              );
-
-            if (state) {
-              state.textContent =
-                "✓ Synced with your partner";
-            }
-          },
-          function(error) {
-            console.error(
-              "V50 shared text realtime error:",
-              error
-            );
-
-            const state =
-              document.getElementById(
-                "sharedTextStatus"
-              );
-
-            if (state) {
-              state.textContent =
-                error &&
-                error.code === "permission-denied"
-                  ? "⚠️ Firebase permission denied"
-                  : "⚠️ Shared text sync failed";
-            }
-          }
-        );
-
-      if (
-        !box.dataset.sharedTextBound
-      ) {
-        box.dataset.sharedTextBound =
-          "true";
-
-        box.addEventListener(
-          "input",
-          function() {
-            clearTimeout(
-              sharedTextSaveTimer
-            );
-
-            const state =
-              document.getElementById(
-                "sharedTextStatus"
-              );
-
-            if (state) {
-              state.textContent =
-                "Saving…";
-            }
-
-            const text =
-              box.value;
-
-            sharedTextSaveTimer =
-              setTimeout(
-                async function() {
-                  const activeCoupleId =
-                    await resolveSharedTextCoupleId();
-
-                  if (
-                    !currentUser ||
-                    !db ||
-                    !activeCoupleId
-                  ) {
-                    if (state) {
-                      state.textContent =
-                        "🔗 Connect with your partner first.";
-                    }
-                    return;
-                  }
-
-                  try {
-                    await db
-                      .collection("couples")
-                      .doc(activeCoupleId)
-                      .update({
-                        sharedText: text,
-                        sharedTextUpdatedAt:
-                          new Date().toISOString(),
-                        sharedTextUpdatedBy:
-                          currentUser.uid
-                      });
-
-                    sharedTextLastLocalValue =
-                      text;
-
-                    if (state) {
-                      state.textContent =
-                        "✓ Synced with your partner";
-                    }
-                  } catch (error) {
-                    console.error(
-                      "V50 shared text save error:",
-                      error
-                    );
-
-                    if (state) {
-                      state.textContent =
-                        error &&
-                        error.code ===
-                          "permission-denied"
-                          ? "⚠️ Firebase permission denied"
-                          : "⚠️ Could not save shared text";
-                    }
-                  }
-                },
-                400
-              );
-          }
-        );
-      }
-
-      console.log(
-        "🌸 V50 shared text sync started:",
-        coupleId
-      );
-    })
-    .catch(function(error) {
-      console.error(
-        "V50 shared text couple resolution failed:",
-        error
-      );
-
-      renderSharedText(
-        "",
-        "⚠️ Could not resolve your couple."
-      );
-    });
-}
-
-window.startSharedTextSync =
-  startSharedTextSync;
-
-window.addEventListener(
-  "load",
-  function() {
-    startSharedTextSync();
-
-    let attempts = 0;
-
-    const timer =
-      setInterval(
-        function() {
-          startSharedTextSync();
-          attempts++;
-
-          if (attempts >= 20) {
-            clearInterval(timer);
-          }
-        },
-        1000
-      );
-  }
-);
-
-/*
- * Restart syncing immediately after a partner connection.
- */
-const oldResolvePartner =
-  window.resolvePartnerFromCouple;
-
 </script>
 
 
@@ -5431,37 +4575,6 @@ const oldResolvePartner =
     <div id="partnerLogsList"></div>
   </div>
 </div>
-
-
-<script>
-(function bindYAppSettingsClose() {
-  function bind() {
-    const button =
-      document.getElementById("settingsCloseButton");
-
-    if (!button || button.dataset.bound === "true") return;
-
-    button.dataset.bound = "true";
-
-    button.addEventListener("click", function(event) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (typeof window.closeSettings === "function") {
-        window.closeSettings();
-      }
-    });
-
-    console.log("🌸 V51 settings close button ready.");
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", bind);
-  } else {
-    bind();
-  }
-})();
-</script>
 
 </body>
 </html>
