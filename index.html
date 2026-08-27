@@ -1,4 +1,5 @@
-<!-- YAPP VERSION: V64 - FINAL REMINDER QA FIXES --
+<!-- YAPP VERSION: V65 - PARAGRAPH FOOD AI JSON + TOKEN FIX -->
+<!-- YAPP VERSION: V64 - FINAL REMINDER QA FIXES -->
 <!-- YAPP VERSION: V63 - FINAL RECHECKED FOOD AI -->
 <!-- YAPP VERSION: V62 - FOOD NUTRIENTS + CONFIDENCE FIX -->
 <!-- YAPP VERSION: V57 - IPHONE MENU JSON FIX -->
@@ -2672,7 +2673,7 @@ async function initAI() {
       aiModule.getGenerativeModel(ai, {
         model: "gemini-3.5-flash-lite",
         generationConfig: {
-          maxOutputTokens: 800,
+          maxOutputTokens: 1400,
           responseMimeType: "application/json"
         }
       });
@@ -2830,20 +2831,21 @@ function renderMenuRecommendations(data) {
 }
 
 function yappParseMenuJSON(raw) {
-  if (raw == null) throw new Error("Empty AI response.");
+  if (raw == null) {
+    throw new Error("AI returned an empty response.");
+  }
 
   let text = String(raw)
     .replace(/^\uFEFF/, "")
     .trim();
 
-  // Gemini may wrap JSON in markdown fences.
   text = text
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 
-  // Never try to JSON.parse an API error message.
-  if (/quota|rate.?limit|429|resource.?exhausted|permission.?denied|unauthenticated/i.test(text)) {
+  /* Do not mislabel API/quota errors as JSON errors. */
+  if (/quota|rate.?limit|429|resource.?exhausted|invalid argument|permission.?denied|unauthenticated/i.test(text)) {
     throw new Error(text.slice(0, 500));
   }
 
@@ -2851,9 +2853,13 @@ function yappParseMenuJSON(raw) {
     return JSON.parse(text);
   } catch (_) {}
 
-  // Extract the first complete JSON object while respecting quoted strings.
-  const start = text.indexOf("{");
+  /*
+   * Extract the first complete object/array.
+   */
+  const start = text.search(/[\{\[]/);
   if (start >= 0) {
+    const open = text[start];
+    const close = open === "{" ? "}" : "]";
     let depth = 0;
     let quoted = false;
     let escaped = false;
@@ -2873,20 +2879,24 @@ function yappParseMenuJSON(raw) {
         continue;
       }
 
-      if (ch === "{") depth++;
-      if (ch === "}") {
+      if (ch === open) depth++;
+      if (ch === close) {
         depth--;
         if (depth === 0) {
           const candidate = text.slice(start, i + 1);
-          try { return JSON.parse(candidate); } catch (_) {}
+          try {
+            return JSON.parse(candidate);
+          } catch (_) {}
           break;
         }
       }
     }
   }
 
-  // Repair the common cases produced by mobile/web models.
-  let repaired = text
+  /*
+   * Repair common JSON formatting.
+   */
+  const repaired = text
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/,\s*([}\]])/g, "$1")
@@ -2896,8 +2906,79 @@ function yappParseMenuJSON(raw) {
     return JSON.parse(repaired);
   } catch (_) {}
 
+  /*
+   * Paragraph fallback:
+   * Recover complete food objects even if Gemini cut off the end of the
+   * response. This is safe because only fully closed objects are accepted.
+   */
+  const recoveredFoods = [];
+  const foodsKey = repaired.search(/"foods"\s*:/);
+
+  if (foodsKey >= 0) {
+    const arrayStart = repaired.indexOf("[", foodsKey);
+
+    if (arrayStart >= 0) {
+      let depth = 0;
+      let objectStart = -1;
+      let inString = false;
+      let escaped = false;
+
+      for (let i = arrayStart + 1; i < repaired.length; i++) {
+        const ch = repaired[i];
+
+        if (inString) {
+          if (escaped) escaped = false;
+          else if (ch === "\\") escaped = true;
+          else if (ch === '"') inString = false;
+          continue;
+        }
+
+        if (ch === '"') {
+          inString = true;
+          continue;
+        }
+
+        if (ch === "{") {
+          if (depth === 0) objectStart = i;
+          depth++;
+        } else if (ch === "}") {
+          depth--;
+
+          if (depth === 0 && objectStart >= 0) {
+            const objectText =
+              repaired.slice(objectStart, i + 1);
+
+            try {
+              const obj = JSON.parse(objectText);
+
+              if (
+                obj &&
+                typeof obj === "object" &&
+                (obj.name || obj.food || obj.item || obj.dish)
+              ) {
+                recoveredFoods.push(obj);
+              }
+            } catch (_) {}
+
+            objectStart = -1;
+
+            if (recoveredFoods.length >= 12) {
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (recoveredFoods.length) {
+    return {
+      foods: recoveredFoods
+    };
+  }
+
   throw new Error(
-    "AI returned incomplete/invalid JSON. Please try the menu photo again."
+    "AI returned incomplete/invalid JSON. Try sending fewer foods at once."
   );
 }
 
@@ -3277,17 +3358,21 @@ window.analyzeFood = async function() {
     const prompt = `
 You are YApp's fast nutrition parser.
 
-User: "${text}"
+Read the user's complete message and identify every food and drink mentioned.
+The message may contain a paragraph with many foods, meal names, quantities,
+times, and extra words. Ignore irrelevant words.
 
-Identify every food or drink in the user's message, including quantities.
-Estimate a normal serving only when the quantity is unclear.
+User:
+${text}
 
-Return ONLY valid JSON.
-Every object property name MUST use double quotes.
-Do not use markdown.
-Do not add commentary outside the JSON.
+Return ONLY one valid JSON object.
+Use double quotes for every property name.
+Do not use markdown or text outside the JSON.
 
-Use exactly this compact structure:
+Return at most 12 foods. Merge repeated mentions of the same food when practical.
+Use a normal serving estimate only when a quantity is unclear.
+
+Use exactly this structure:
 {
   "foods": [
     {
@@ -3310,15 +3395,18 @@ Use exactly this compact structure:
       "confidence": 0.95
     }
   ],
-  "explanation": "Typical serving estimate."
+  "explanation": "Brief estimate note."
 }
 
-IMPORTANT:
-- Put ALL nutrient values inside EACH food object.
-- confidence must be a number from 0 to 1.
-- Never omit a nutrient; use 0 when appropriate.
-- Keep the response compact.
+Rules:
+- Put ALL nutrient values inside every food object.
+- Every numeric field must be a number, never null or NaN.
+- confidence must be between 0 and 1.
+- Use 0 when a nutrient is negligible or not present.
+- Keep names and explanation short.
+- Do not include total nutrient fields; YApp calculates totals itself.
 `;
+
 
 
     const result = await model.generateContent(prompt);
