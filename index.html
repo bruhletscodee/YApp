@@ -1,3 +1,4 @@
+<!-- YAPP VERSION: V58 - SHARED ROBUST GEMINI JSON FOR MENU + FOOD -->
 <!-- YAPP VERSION: V57 - IPHONE MENU JSON FIX -->
 <!-- YAPP VERSION: V40 - INSTALLABLE PWA -->
 <!-- YAPP VERSION: V33 - PETALS DETACH FROM CHERRY BLOSSOM BRANCH -->
@@ -2826,7 +2827,7 @@ function renderMenuRecommendations(data) {
     '</div></div>';
 }
 
-function yappParseMenuJSON(raw) {
+function yappParseGeminiJSON(raw) {
   if (raw == null) throw new Error("Empty AI response.");
 
   let text = String(raw)
@@ -3012,7 +3013,7 @@ Be extremely concise. Return at most 10 choices. Do not add any text outside the
       result.response.text();
 
     const data =
-      yappParseMenuJSON(raw);
+      yappParseGeminiJSON(raw);
 
     if (!data.choices || !data.choices.length) {
       throw new Error("No menu items found.");
@@ -3126,10 +3127,10 @@ Keep the response compact.
 
     raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 
-    const data = JSON.parse(raw);
+    const data = yappParseGeminiJSON(raw);
 
     if (!data.foods || !data.foods.length) {
-      throw new Error("No food detected.");
+      throw new Error("No food detected. Try a clearer description or photo.");
     }
 
     /*
