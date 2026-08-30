@@ -1,4 +1,5 @@
-<!-- YAPP VERSION: V65 - PARAGRAPH FOOD AI JSON + TOKEN FIX --> 
+<!-- YAPP VERSION: V66 - SHARED WHITEBOARD RESTORED -->
+<!-- YAPP VERSION: V65 - PARAGRAPH FOOD AI JSON + TOKEN FIX -->
 <!-- YAPP VERSION: V64 - FINAL REMINDER QA FIXES -->
 <!-- YAPP VERSION: V63 - FINAL RECHECKED FOOD AI -->
 <!-- YAPP VERSION: V62 - FOOD NUTRIENTS + CONFIDENCE FIX -->
@@ -844,6 +845,22 @@ You ❤️
 
 <div id="connectedBar" class="connected-bar">❤️ Connected to <span id="connectedName">your partner</span></div>
 
+<div class="card" id="whiteboardCard">
+  <h2>📝 Our Whiteboard</h2>
+  <p class="sub">Write anything here. It syncs with your partner.</p>
+  <textarea
+    id="whiteboardInput"
+    placeholder="Write a note, plan, reminder, or message to your partner..."
+    aria-label="Shared whiteboard"></textarea>
+  <div
+    id="whiteboardStatus"
+    class="sub"
+    style="margin-top:7px;text-align:right">
+    Connecting…
+  </div>
+</div>
+
+
 <!-- =========================
 CALORIES
 ========================= -->
@@ -1636,6 +1653,201 @@ async function refreshDisplayedCoupleCode() {
   }
 }
 
+
+/* =========================================================
+   V66 SHARED WHITEBOARD
+   Uses couples/{coupleId}.whiteboard and realtime onSnapshot.
+========================================================= */
+let unsubscribeWhiteboard = null;
+let whiteboardSaveTimer = null;
+let whiteboardBound = false;
+
+function setWhiteboardStatus(message) {
+  const status =
+    document.getElementById("whiteboardStatus");
+
+  if (status) {
+    status.textContent = message;
+  }
+}
+
+function startWhiteboardSync() {
+  if (unsubscribeWhiteboard) {
+    try {
+      unsubscribeWhiteboard();
+    } catch (e) {}
+    unsubscribeWhiteboard = null;
+  }
+
+  const box =
+    document.getElementById("whiteboardInput");
+
+  if (!box || !currentUser || !currentProfile || !db) {
+    setWhiteboardStatus(
+      "🔗 Connect with your partner to sync."
+    );
+    return;
+  }
+
+  const coupleId =
+    currentProfile.coupleId || null;
+
+  if (!coupleId) {
+    setWhiteboardStatus(
+      "🔗 Connect with your partner to sync."
+    );
+    return;
+  }
+
+  const coupleRef =
+    db.collection("couples").doc(coupleId);
+
+  setWhiteboardStatus("Connecting…");
+
+  unsubscribeWhiteboard =
+    coupleRef.onSnapshot(
+      function(snapshot) {
+        if (!snapshot.exists) {
+          setWhiteboardStatus(
+            "⚠️ Couple record not found."
+          );
+          return;
+        }
+
+        const data =
+          snapshot.data() || {};
+
+        /*
+         * V66 uses "whiteboard" as the canonical field.
+         * Read old sharedText once as a compatibility fallback.
+         */
+        const incoming =
+          typeof data.whiteboard === "string"
+            ? data.whiteboard
+            : (
+                typeof data.sharedText === "string"
+                  ? data.sharedText
+                  : ""
+              );
+
+        /*
+         * Do not overwrite text while the user is actively typing.
+         */
+        if (
+          document.activeElement !== box
+        ) {
+          box.value = incoming;
+        }
+
+        setWhiteboardStatus(
+          "✓ Synced with your partner"
+        );
+      },
+      function(error) {
+        console.error(
+          "V66 whiteboard realtime error:",
+          error
+        );
+
+        if (
+          error &&
+          error.code === "permission-denied"
+        ) {
+          setWhiteboardStatus(
+            "⚠️ Firebase permission denied"
+          );
+        } else {
+          setWhiteboardStatus(
+            "⚠️ Whiteboard sync failed"
+          );
+        }
+      }
+    );
+
+  if (!whiteboardBound) {
+    whiteboardBound = true;
+
+    box.addEventListener(
+      "input",
+      function() {
+        clearTimeout(
+          whiteboardSaveTimer
+        );
+
+        setWhiteboardStatus(
+          "Saving…"
+        );
+
+        const text =
+          box.value;
+
+        whiteboardSaveTimer =
+          setTimeout(
+            async function() {
+              if (
+                !currentUser ||
+                !currentProfile ||
+                !db
+              ) {
+                setWhiteboardStatus(
+                  "🔗 Not connected."
+                );
+                return;
+              }
+
+              const activeCoupleId =
+                currentProfile.coupleId;
+
+              if (!activeCoupleId) {
+                setWhiteboardStatus(
+                  "🔗 Connect with your partner first."
+                );
+                return;
+              }
+
+              try {
+                await db
+                  .collection("couples")
+                  .doc(activeCoupleId)
+                  .update({
+                    whiteboard: text,
+                    whiteboardUpdatedAt:
+                      new Date().toISOString(),
+                    whiteboardUpdatedBy:
+                      currentUser.uid
+                  });
+
+                setWhiteboardStatus(
+                  "✓ Synced with your partner"
+                );
+
+              } catch (error) {
+                console.error(
+                  "V66 whiteboard save error:",
+                  error
+                );
+
+                setWhiteboardStatus(
+                  error &&
+                  error.code ===
+                    "permission-denied"
+                    ? "⚠️ Firebase permission denied"
+                    : "⚠️ Could not save whiteboard"
+                );
+              }
+            },
+            350
+          );
+      }
+    );
+  }
+
+  console.log(
+    "🌸 V66 whiteboard sync:",
+    coupleId
+  );
+}
+
 async function startApp() {
   showPage("main");
 
@@ -1734,6 +1946,7 @@ async function startApp() {
    */
   listenToPartnerMeals();
   listenToCoupleChanges();
+  startWhiteboardSync();
 }
 
 /* -------------------------
@@ -3746,6 +3959,8 @@ window.connectPartnerFromSettings=async function(){
   if(!input) return;
   await window.connectPartner();
   openSettings();
+
+  startWhiteboardSync();
 };
 
 function getUserSexFromTracker() {
