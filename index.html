@@ -1376,9 +1376,9 @@ FIREBASE
 ================================================= -->
 
 
-<script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
 
 <script>
 /* =========================================================
@@ -2867,33 +2867,40 @@ function renderPartnerMeals(meals) {
 ------------------------- */
 async function initAI() {
   try {
-    const aiModule =
-      await import("https://www.gstatic.com/firebasejs/12.7.0/firebase-ai.js");
+    // Firebase AI Logic modules
+    const aiModule = await import(
+      "https://www.gstatic.com/firebasejs/12.19.0/firebase-ai.js"
+    );
 
-    // Use the modular Firebase App just for Firebase AI Logic.
-    const appModule =
-      await import("https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js");
+    const appModule = await import(
+      "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js"
+    );
 
-    const modularApp =
-      appModule.initializeApp(firebaseConfig, "YAppAI");
+    // Keep AI on a separate modular Firebase app so the existing
+    // Firebase Auth / Firestore compat setup remains unchanged.
+    const modularApp = appModule.initializeApp(
+      firebaseConfig,
+      "YAppAI"
+    );
 
-    const ai =
-      aiModule.getAI(modularApp, {
-        backend: new aiModule.GoogleAIBackend()
-      });
+    // Agent Platform is the current Firebase AI Logic backend
+    // for the former Vertex AI path. Global is the default/recommended
+    // location for current Gemini 3.x models.
+    const ai = aiModule.getAI(modularApp, {
+      backend: new aiModule.AgentPlatformBackend("global")
+    });
 
-    model =
-      aiModule.getGenerativeModel(ai, {
-        model: "gemini-3.5-flash-lite",
-        generationConfig: {
-          maxOutputTokens: 1400,
-          responseMimeType: "application/json"
-        }
-      });
+    model = aiModule.getGenerativeModel(ai, {
+      model: "gemini-3.8-flash",
+      generationConfig: {
+        maxOutputTokens: 1400,
+        responseMimeType: "application/json"
+      }
+    });
 
-    console.log("🌸 YApp Gemini ready.");
+    console.log("🌸 YApp Gemini 3.8 Flash ready.");
   } catch (error) {
-    console.warn("YApp AI unavailable; login will continue to work.", error);
+    console.error("❌ YApp AI initialization failed:", error);
     model = null;
   }
 }
